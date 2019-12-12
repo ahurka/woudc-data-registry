@@ -25,6 +25,24 @@ class ReportBuilder:
         self._working_directory = root
         self._error_definitions = {}
 
+        self._report_batch = {
+            'Processing Status': '',
+            'Station Type': '',
+            'Station ID': '',
+            'Agency': '',
+            'Dataset': '',
+            'Data Level': '',
+            'Data Form': '',
+            'Filename': '',
+            'Line Number': [],
+            'Error Type': [],
+            'Error Code': [],
+            'Message': [],
+            'Incoming Path': '',
+            'Outgoing Path': '',
+            'URN': ''
+        }
+
         self.read_error_definitions(config.WDR_ERROR_CONFIG)
 
     def read_error_definitions(self, filepath):
@@ -42,6 +60,18 @@ class ReportBuilder:
                 error_code = int(row[0])
                 self._error_definitions[error_code] = row[1:]
 
+    def _flush_report_batch(self):
+        """
+        Empties out the stored report batch in preparation for starting to
+        process a new file.
+        """
+
+        for field, column in self._report_batch.items():
+            if isinstance(column, str):
+                self._report_batch[field] = ''
+            else:
+                self._report_batch[field].clear()
+
     def add_message(self, error_code, line, **kwargs):
         """
         Logs that an error of type <error_code> was found at line <line>
@@ -58,7 +88,25 @@ class ReportBuilder:
         :returns: False iff a severe error has occurred.
         """
 
-        return True
+        try:
+            error_class, message_template = self.error_definitions[error_code]
+            message = message_template.format(**kwargs)
+        except KeyError:
+            msg = 'Unrecognized error code {}'.format(error_code)
+            LOGGER.error(msg)
+            raise ValueError(msg)
+
+        self._report_batch['Line Number'].append(line)
+        self._report_batch['Error Code'].append(error_code)
+        self._report_batch['Error Type'].append(error_class)
+        self._report_batch['Message'].append(message)
+
+        if error_class == 'Warning':
+            LOGGER.warning(message)
+            return False
+        else:
+            LOGGER.error(message)
+            return True
 
     def record_passing_file(self, filepath, extcsv, data_record):
         """
@@ -71,7 +119,7 @@ class ReportBuilder:
         :param data_record: Data record generated from the incoming file.
         """
 
-        pass
+        self._flush_report_batch()
 
     def record_failing_file(self, filepath, extcsv=None, agency=None):
         """
@@ -90,4 +138,4 @@ class ReportBuilder:
         :param agency: Agency acronym responsible for the incoming file.
         """
 
-        pass
+        self._flush_report_batch()
