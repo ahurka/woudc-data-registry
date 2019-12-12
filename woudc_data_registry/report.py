@@ -1,5 +1,8 @@
 
+import csv
 import logging
+
+from woudc_data_registry import config
 
 
 LOGGER = logging.getLogger(__name__)
@@ -20,6 +23,24 @@ class ReportBuilder:
         """
 
         self._working_directory = root
+        self._error_definitions = {}
+
+        self.read_error_definitions(config.WDR_ERROR_CONFIG)
+
+    def read_error_definitions(self, filepath):
+        """
+        Loads the error definitions found in <filepath> to apply those
+        rules to future error/warning determination.
+
+        :param filepath: Path to an error definition file.
+        """
+
+        with open(filepath) as error_definitions:
+            reader = csv.reader(error_definitions, escapechar='\\')
+
+            for row in reader:
+                error_code = int(row[0])
+                self._error_definitions[error_code] = row[1:]
 
     def add_message(self, error_code, line, **kwargs):
         """
