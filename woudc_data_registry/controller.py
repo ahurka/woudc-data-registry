@@ -53,13 +53,11 @@ from woudc_data_registry.registry import Registry
 from woudc_data_registry.search import SearchIndex
 
 
-def orchestrate(file_, directory, metadata_only=False,
-                verify_only=False, bypass=False):
+def orchestrate(source, metadata_only=False, verify_only=False, bypass=False):
     """
     Core orchestation workflow
 
-    :param file_: File to process.
-    :param directory: Directory to process (recursive).
+    :param source: Path to input file or directory tree containing them.
     :param metadata_only: `bool` of whether to verify only the
                           common metadata tables.
     :param verify_only: `bool` of whether to verify the file for correctness
@@ -71,10 +69,10 @@ def orchestrate(file_, directory, metadata_only=False,
 
     files_to_process = []
 
-    if file_ is not None:
-        files_to_process = [file_]
-    elif directory is not None:
-        for root, dirs, files in os.walk(directory):
+    if os.path.isfile(source):
+        files_to_process = [source]
+    elif os.path.isdir(source):
+        for root, dirs, files in os.walk(source):
             for f in files:
                 files_to_process.append(os.path.join(root, f))
 
@@ -127,57 +125,30 @@ def data():
 
 @click.command()
 @click.pass_context
-@click.option('--file', '-f', 'file_',
-              type=click.Path(exists=True, resolve_path=True),
-              help='Path to data record')
-@click.option('--directory', '-d', 'directory',
-              type=click.Path(exists=True, resolve_path=True,
-                              dir_okay=True, file_okay=False),
-              help='Path to directory of data records')
+@click.argument('source', type=click.Path(exists=True, resolve_path=True,
+                                          dir_okay=True, file_okay=True))
 @click.option('--lax', '-l', 'lax', is_flag=True,
               help='Only validate core metadata tables')
 @click.option('--yes', '-y', 'bypass', is_flag=True, default=False,
               help='Bypass permission prompts while ingesting')
-def ingest(ctx, file_, directory, lax, bypass):
+def ingest(ctx, source, lax, bypass):
     """ingest a single data submission or directory of files"""
 
-    if file_ is not None and directory is not None:
-        msg = '--file and --directory are mutually exclusive'
-        raise click.ClickException(msg)
-
-    if file_ is None and directory is None:
-        msg = 'One of --file or --directory is required'
-        raise click.ClickException(msg)
-
-    orchestrate(file_, directory, metadata_only=lax, bypass=bypass)
+    orchestrate(source, metadata_only=lax, bypass=bypass)
 
 
 @click.command()
 @click.pass_context
-@click.option('--file', '-f', 'file_',
-              type=click.Path(exists=True, resolve_path=True),
-              help='Path to data record')
-@click.option('--directory', '-d', 'directory',
-              type=click.Path(exists=True, resolve_path=True,
-                              dir_okay=True, file_okay=False),
-              help='Path to directory of data records')
+@click.argument('source', type=click.Path(exists=True, resolve_path=True,
+                                          dir_okay=True, file_okay=True))
 @click.option('--lax', '-l', 'lax', is_flag=True,
               help='Only validate core metadata tables')
 @click.option('--yes', '-y', 'bypass', is_flag=True, default=False,
               help='Bypass permission prompts while ingesting')
-def verify(ctx, file_, directory, lax, bypass):
+def verify(ctx, source, lax, bypass):
     """verify a single data submission or directory of files"""
 
-    if file_ is not None and directory is not None:
-        msg = '--file and --directory are mutually exclusive'
-        raise click.ClickException(msg)
-
-    if file_ is None and directory is None:
-        msg = 'One of --file or --directory is required'
-        raise click.ClickException(msg)
-
-    orchestrate(file_, directory, metadata_only=lax, verify_only=True,
-                bypass=bypass)
+    orchestrate(source, metadata_only=lax, verify_only=True, bypass=bypass)
 
 
 data.add_command(ingest)
