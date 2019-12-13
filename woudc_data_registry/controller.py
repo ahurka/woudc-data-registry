@@ -51,13 +51,16 @@ from woudc_data_registry.processing import Process
 
 from woudc_data_registry.registry import Registry
 from woudc_data_registry.search import SearchIndex
+from woudc_data_registry.report import ReportBuilder
 
 
-def orchestrate(source, metadata_only=False, verify_only=False, bypass=False):
+def orchestrate(source, working_dir,
+                metadata_only=False, verify_only=False, bypass=False):
     """
     Core orchestation workflow
 
     :param source: Path to input file or directory tree containing them.
+    :param working_dir: Output directory for log and report files.
     :param metadata_only: `bool` of whether to verify only the
                           common metadata tables.
     :param verify_only: `bool` of whether to verify the file for correctness
@@ -84,10 +87,12 @@ def orchestrate(source, metadata_only=False, verify_only=False, bypass=False):
     registry = Registry()
     search_engine = SearchIndex()
 
+    reporter = ReportBuilder(working_dir)
+
     with click.progressbar(files_to_process, label='Processing files') as run_:
         for file_to_process in run_:
             click.echo('Processing filename: {}'.format(file_to_process))
-            p = Process(registry, search_engine)
+            p = Process(registry, search_engine, reporter)
             try:
                 if p.validate(file_to_process, metadata_only=metadata_only,
                               verify_only=verify_only, bypass=bypass):
@@ -127,14 +132,16 @@ def data():
 @click.pass_context
 @click.argument('source', type=click.Path(exists=True, resolve_path=True,
                                           dir_okay=True, file_okay=True))
+@click.option('--working-dir', '-w', 'working_dir', default=None,
+              help='Path to main output directory for logs and reports')
 @click.option('--lax', '-l', 'lax', is_flag=True,
               help='Only validate core metadata tables')
 @click.option('--yes', '-y', 'bypass', is_flag=True, default=False,
               help='Bypass permission prompts while ingesting')
-def ingest(ctx, source, lax, bypass):
+def ingest(ctx, source, working_dir, lax, bypass):
     """ingest a single data submission or directory of files"""
 
-    orchestrate(source, metadata_only=lax, bypass=bypass)
+    orchestrate(source, working_dir, metadata_only=lax, bypass=bypass)
 
 
 @click.command()
@@ -148,7 +155,8 @@ def ingest(ctx, source, lax, bypass):
 def verify(ctx, source, lax, bypass):
     """verify a single data submission or directory of files"""
 
-    orchestrate(source, metadata_only=lax, verify_only=True, bypass=bypass)
+    orchestrate(source, None, metadata_only=lax,
+                verify_only=True, bypass=bypass)
 
 
 data.add_command(ingest)

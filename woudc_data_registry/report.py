@@ -89,7 +89,7 @@ class ReportBuilder:
         """
 
         try:
-            error_class, message_template = self.error_definitions[error_code]
+            error_class, message_template = self._error_definitions[error_code]
             message = message_template.format(**kwargs)
         except KeyError:
             msg = 'Unrecognized error code {}'.format(error_code)
