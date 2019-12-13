@@ -56,11 +56,8 @@ from woudc_data_registry import config
 from woudc_data_registry.models import (Contributor, DataRecord, Dataset,
                                         Deployment, Instrument, Project,
                                         Station, StationName)
-from woudc_data_registry.parser import (DOMAINS, ExtendedCSV,
-                                        MetadataValidationError,
-                                        NonStandardDataError)
+from woudc_data_registry.parser import DOMAINS
 from woudc_data_registry.dataset_validators import get_validator
-from woudc_data_registry.util import is_text_file, read_file
 
 from woudc_data_registry.epicentre.station import build_station_name
 from woudc_data_registry.epicentre.instrument import build_instrument
@@ -123,7 +120,7 @@ class Process(object):
 
         return not severe
 
-    def validate(self, infile, metadata_only=False, verify_only=False,
+    def validate(self, extcsv, metadata_only=False, verify_only=False,
                  bypass=False):
         """
         Process incoming data record.
@@ -139,49 +136,11 @@ class Process(object):
         """
 
         # detect incoming data file
-        data = None
-        self.extcsv = None
+        self.extcsv = extcsv
 
         self.warnings = []
         self.errors = []
 
-        LOGGER.info('Processing file {}'.format(infile))
-        LOGGER.info('Detecting file')
-        if not is_text_file(infile):
-            if not self._add_to_report(1, None):
-                return False
-
-        try:
-            data = read_file(infile)
-        except UnicodeDecodeError as err:
-            self.status = 'failed'
-            self.code = 'NonStandardDataError'
-            self.message = err
-            LOGGER.error('Unknown file: {}'.format(err))
-            return False
-
-        try:
-            LOGGER.info('Parsing data record')
-            self.extcsv = ExtendedCSV(data, self.reports)
-            LOGGER.info('Validating Extended CSV')
-            self.extcsv.validate_metadata_tables()
-            if not metadata_only:
-                self.extcsv.validate_dataset_tables()
-            LOGGER.info('Valid Extended CSV')
-        except NonStandardDataError as err:
-            self.status = 'failed'
-            self.code = 'NonStandardDataError'
-            self.message = str(err).strip()
-            LOGGER.error('Invalid Extended CSV: {}'.format(self.message))
-            return False
-        except MetadataValidationError as err:
-            self.status = 'failed'
-            self.code = 'MetadataValidationError'
-            self.message = err
-            LOGGER.error('Invalid Extended CSV: {}'.format(err.errors))
-            return False
-
-        LOGGER.info('Data is valid Extended CSV')
         LOGGER.info('Verifying data record against core metadata fields')
 
         project_ok = self.check_project()
@@ -289,7 +248,7 @@ class Process(object):
         if not all([project_ok, dataset_ok, contributor_ok,
                     platform_ok, deployment_ok, instrument_ok,
                     location_ok, content_ok, data_generation_ok]):
-            return False
+            return None
 
         if metadata_only:
             msg = 'Lax mode detected. NOT validating dataset-specific tables'
@@ -302,25 +261,20 @@ class Process(object):
             dataset_validated = dataset_validator.check_all(self.extcsv)
 
             if not all([time_series_ok, dataset_validated]):
-                return False
+                return None
 
         LOGGER.info('Validating data record')
         data_record = DataRecord(self.extcsv)
-        data_record.ingest_filepath = infile
-        data_record.filename = os.path.basename(infile)
-        data_record.output_filepath = data_record.get_waf_path(
-            config.WDR_WAF_BASEDIR)
-        data_record.url = data_record.get_waf_path(config.WDR_WAF_BASEURL)
-        self.process_end = datetime.utcnow()
-
         data_record_ok = self.check_data_record(data_record)
 
-        if data_record_ok:
+        if not data_record_ok:
+            return None
+        else:
             LOGGER.info('Data record is valid and verified')
             self._registry_updates.append(data_record)
             self._search_index_updates.append(data_record)
 
-        return data_record_ok
+            return data_record
 
     def persist(self):
         """
@@ -748,7 +702,7 @@ class Process(object):
             name = response[0].name
             self.extcsv.extcsv['INSTRUMENT']['Name'] = response[0].name
         else:
-            succes &= self._add_to_report(85, valueline, name=name)
+            success &= self._add_to_report(85, valueline, name=name)
 
         # Check data registry for matching instrument model
         response = self.registry.query_by_field(Instrument, 'model', model,

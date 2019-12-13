@@ -46,12 +46,21 @@
 import os
 
 import click
+import logging
 
+from woudc_data_registry import config
+from woudc_data_registry.util import is_text_file, read_file
+
+from woudc_data_registry.parser import (ExtendedCSV, NonStandardDataError,
+                                        MetadataValidationError)
 from woudc_data_registry.processing import Process
 
 from woudc_data_registry.registry import Registry
 from woudc_data_registry.search import SearchIndex
 from woudc_data_registry.report import ReportBuilder
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def orchestrate(source, working_dir,
@@ -86,26 +95,66 @@ def orchestrate(source, working_dir,
 
     registry = Registry()
     search_engine = SearchIndex()
-
     reporter = ReportBuilder(working_dir)
 
     with click.progressbar(files_to_process, label='Processing files') as run_:
         for file_to_process in run_:
             click.echo('Processing filename: {}'.format(file_to_process))
-            p = Process(registry, search_engine, reporter)
+
+            LOGGER.info('Detecting file')
+            if not is_text_file(file_to_process):
+                if reporter.add_message(1, None):  # If code 1 is an error
+                    failed.append(file_to_process)
+                    continue
+
             try:
-                if p.validate(file_to_process, metadata_only=metadata_only,
-                              verify_only=verify_only, bypass=bypass):
+                contents = read_file(file_to_process)
+
+                LOGGER.info('Parsing data record')
+                extcsv = ExtendedCSV(contents, reporter)
+
+                LOGGER.info('Validating Extended CSV')
+                extcsv.validate_metadata_tables()
+                if not metadata_only:
+                    extcsv.validate_dataset_tables()
+                LOGGER.info('Valid Extended CSV')
+
+                p = Process(registry, search_engine, reporter)
+                data_record = p.validate(extcsv, metadata_only=metadata_only,
+                                         bypass=bypass)
+
+                if data_record is None:
+                    click.echo('Not ingesting')
+                    failed.append(file_to_process)
+                else:
+                    data_record.ingest_filepath = file_to_process
+                    data_record.filename = os.path.basename(file_to_process)
+                    data_record.url = \
+                        data_record.get_waf_path(config.WDR_WAF_BASEURL)
 
                     if verify_only:
                         click.echo('Verified but not ingested')
                     else:
                         p.persist()
                         click.echo('Ingested successfully')
+
                     passed.append(file_to_process)
-                else:
-                    click.echo('Not ingested')
-                    failed.append(file_to_process)
+
+            except UnicodeDecodeError as err:
+                LOGGER.error('Unknown file format: {}'.format(err))
+
+                click.echo('Not ingested')
+                failed.append(file_to_process)
+            except NonStandardDataError as err:
+                LOGGER.error('Invalid Extended CSV: {}'.format(err.errors))
+
+                click.echo('Not ingested')
+                failed.append(file_to_process)
+            except MetadataValidationError as err:
+                LOGGER.error('Invalid Extended CSV: {}'.format(err.errors))
+
+                click.echo('Not ingested')
+                failed.append(file_to_process)
             except Exception as err:
                 click.echo('Processing failed: {}'.format(err))
                 failed.append(file_to_process)

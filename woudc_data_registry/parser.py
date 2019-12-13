@@ -1043,6 +1043,7 @@ class ExtendedCSV(object):
             raise MetadataValidationError('Invalid dataset tables',
                                           self.errors)
 
+
 class NonStandardDataError(Exception):
     """custom exception handler"""
 
