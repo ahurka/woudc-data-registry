@@ -146,7 +146,8 @@ class ExtendedCSV(object):
                 comma_separated = row[0].replace(separator, ',')
                 row = next(csv.reader(StringIO(comma_separated)))
 
-                self._add_to_report(16, line_num, separator=separator)
+                success &= self._add_to_report(16, line_num,
+                                               separator=separator)
 
             if len(row) == 1 and row[0].startswith('#'):  # table name
                 parent_table = ''.join(row).lstrip('#').strip()
@@ -156,15 +157,14 @@ class ExtendedCSV(object):
                     ln, fields = next(lines)
 
                     while non_content_line(fields):
-                        self._add_to_report(14, ln)
-
+                        success &= self._add_to_report(14, ln)
                         ln, fields = next(lines)
 
                     parent_table = self.init_table(parent_table, fields,
                                                    line_num)
                 except StopIteration:
-                    self._add_to_report(9, line_num, table=parent_table)
-                    success = False
+                    success &= self._add_to_report(9, line_num,
+                                                   table=parent_table)
             elif len(row) > 0 and row[0].startswith('*'):  # comment
                 LOGGER.debug('Found comment')
                 continue
@@ -173,10 +173,10 @@ class ExtendedCSV(object):
                 continue
             elif parent_table is not None and not non_content_line(row):
                 table_values = row
-                self.add_values_to_table(parent_table, table_values, line_num)
+                success &= self.add_values_to_table(parent_table, table_values,
+                                                    line_num)
             else:
-                self._add_to_report(15, line_num, row=','.join(row))
-                success = False
+                success &= self._add_to_report(15, line_num, row=','.join(row))
 
         if not success:
             raise NonStandardDataError(self.errors)
@@ -190,7 +190,15 @@ class ExtendedCSV(object):
         Returns False iff the error is serious enough to abort parsing.
         """
 
-        return self.reports.add_message(error_code, line, kwargs)
+        message, severe = self.reports.add_message(error_code, line, **kwargs)
+        if severe:
+            LOGGER.error(message)
+            self.errors.append(message)
+        else:
+            LOGGER.warning(message)
+            self.warnings.append(message)
+
+        return not severe
 
     def line_num(self, table):
         """
@@ -248,23 +256,29 @@ class ExtendedCSV(object):
         Add the raw strings in <values> to the bottom of the columns
         in the tabled named <table_name>.
 
+        Returns whether the operation was successful (no errors occurred).
+
         :param table_name: Name of the table the values fall under
         :param values: A list of values from one row in the table
         :param line_num: Line number the row occurs at
-        :returns: void
+        :returns: `bool` of whether the operation was successful
         """
+
+        success = True
 
         fields = self.extcsv[table_name].keys()
         fillins = len(fields) - len(values)
 
         if fillins < 0:
-            self._add_to_report(25, line_num)
+            success &= self._add_to_report(25, line_num)
 
         values.extend([''] * fillins)
         values = values[:len(fields)]
 
         for field, value in zip(fields, values):
             self.extcsv[table_name][field].append(value.strip())
+
+        return success
 
     def remove_table(self, table_name):
         """
@@ -342,6 +356,8 @@ class ExtendedCSV(object):
         :returns: The timestamp converted to a time object.
         """
 
+        success = True
+
         if timestamp[-2:] in ['am', 'pm']:
             noon_indicator = timestamp[-2:]
             timestamp = timestamp[:-2].strip()
@@ -352,7 +368,8 @@ class ExtendedCSV(object):
         bad_seps = set(separators) - set(':')
 
         for separator in bad_seps:
-            self._add_to_report(30, line_num, table=table, sep=separator)
+            success &= self._add_to_report(30, line_num, table=table,
+                                           separator=separator)
 
             timestamp = timestamp.replace(separator, ':')
 
@@ -366,44 +383,54 @@ class ExtendedCSV(object):
         try:
             hour_numeric = int(hour)
         except ValueError:
-            self._add_to_report(31, line_num, table=table, component='hour')
+            success &= self._add_to_report(31, line_num, table=table,
+                                           component='hour')
         try:
             minute_numeric = int(minute)
         except ValueError:
-            self._add_to_report(31, line_num, table=table, component='minute')
+            success &= self._add_to_report(31, line_num, table=table,
+                                           component='minute')
         try:
             second_numeric = int(second)
         except ValueError:
-            self._add_to_report(31, line_num, table=table, component='second')
+            success &= self._add_to_report(31, line_num, table=table,
+                                           component='second')
+
+        if not success:
+            raise ValueError('Parsing errors encountered in #{}.Time'
+                             .format(table))
 
         if noon_indicator == 'am' and hour_numeric == 12:
-            self._add_to_report(32, line_num, table=table)
+            success &= self._add_to_report(32, line_num, table=table)
             hour_numeric = 0
         elif noon_indicator == 'pm' and hour_numeric not in [12, None]:
-            self._add_to_report(32, line_num, table=table)
+            success &= self._add_to_report(32, line_num, table=table)
             hour_numeric += 12
 
         if second_numeric is not None and second_numeric not in range(0, 60):
-            self._add_to_report(33, line_num, table=table, component='second',
-                                lower='00', upper='59')
+            success &= self._add_to_report(33, line_num, table=table,
+                                           component='second',
+                                           lower='00', upper='59')
 
             while second_numeric >= 60 and minute_numeric is not None:
                 second_numeric -= 60
                 minute_numeric += 1
         if minute_numeric is not None and minute_numeric not in range(0, 60):
-            self._add_to_report(33, line_num, table=table, component='minute',
-                                lower='00', upper='59')
+            success &= self._add_to_report(33, line_num, table=table,
+                                           component='minute',
+                                           lower='00', upper='59')
 
             while minute_numeric >= 60 and hour_numeric is not None:
                 minute_numeric -= 60
                 hour_numeric += 1
         if hour_numeric is not None and hour_numeric not in range(0, 24):
-            self._add_to_report(33, line_num, table=table, component='hour',
-                                lower='00', upper='23')
+            success &= self._add_to_report(33, line_num, table=table,
+                                           component='hour',
+                                           lower='00', upper='23')
 
-        if None in [hour_numeric, minute_numeric, second_numeric]:
-            raise ValueError('Validation errors found in timestamp {}'
-                             .format(timestamp))
+        if not success:
+            raise ValueError('Parsing errors encountered in #{}.Time'
+                             .format(table))
         else:
             return time(hour_numeric, minute_numeric, second_numeric)
 
@@ -423,54 +450,64 @@ class ExtendedCSV(object):
         :returns: The datestamp converted to a datetime object.
         """
 
+        success = True
+
         separators = re.findall(r'[^\w\d]', datestamp)
         bad_seps = set(separators) - set('-')
 
         for separator in bad_seps:
-            self._add_to_report(34, line_num, table=table, separator=separator)
+            success &= self._add_to_report(34, line_num, table=table,
+                                           separator=separator)
 
             datestamp = datestamp.replace(separator, '-')
 
-        if '-' not in datestamp:
-            self._add_to_report(35, line_num, table=table)
-            raise ValueError('')
-
         tokens = datestamp.split('-')
+
+        if len(tokens) == 1:
+            success &= self._add_to_report(35, line_num, table=table)
         if len(tokens) < 3:
-            self._add_to_report(36, line_num, table=table)
-            raise ValueError('')
+            success &= self._add_to_report(36, line_num, table=table)
         elif len(tokens) > 3:
-            self._add_to_report(37, line_num, table=table)
-            raise ValueError('')
+            success &= self._add_to_report(37, line_num, table=table)
+
+        if not success:
+            raise ValueError('Parsing errors encountered in #{}.Date'
+                             .format(table))
 
         year = month = day = None
 
         try:
             year = int(tokens[0])
         except ValueError:
-            self._add_to_report(38, line_num, table=table, component='year')
+            success &= self._add_to_report(38, line_num, table=table,
+                                           component='year')
         try:
             month = int(tokens[1])
         except ValueError:
-            self._add_to_report(38, line_num, table=table, component='month')
+            success &= self._add_to_report(38, line_num, table=table,
+                                           component='month')
         try:
             day = int(tokens[2])
         except ValueError:
-            self._add_to_report(38, line_num, table=table, component='day')
+            success &= self._add_to_report(38, line_num, table=table,
+                                           component='day')
 
         present_year = datetime.now().year
         if year is not None and year not in range(1940, present_year + 1):
-            self._add_to_report(39, line_num, table=table, component='year',
-                                lower='1940', upper='PRESENT')
+            success &= self._add_to_report(39, line_num, table=table,
+                                           component='year',
+                                           lower='1940', upper='PRESENT')
         if month is not None and month not in range(1, 12 + 1):
-            self._add_to_report(39, line_num, table=table, component='month',
-                                lower='01', upper='12')
+            success &= self._add_to_report(39, line_num, table=table,
+                                           component='month',
+                                           lower='01', upper='12')
         if day is not None and day not in range(1, 31 + 1):
-            self._add_to_report(40, line_num, table=table,
-                                lower='01', upper='31')
+            success &= self._add_to_report(40, line_num, table=table,
+                                           lower='01', upper='31')
 
-        if None in [year, month, day]:
-            raise ValueError('')
+        if not success:
+            raise ValueError('Parsing errors encountered in #{}.Date'
+                             .format(table))
         else:
             return datetime.strptime(datestamp, '%Y-%m-%d').date()
 
@@ -488,11 +525,14 @@ class ExtendedCSV(object):
         :returns: The value converted to expected UTCOffset format.
         """
 
+        success = True
+
         separators = re.findall(r'[^-\+\w\d]', utcoffset)
         bad_seps = set(separators) - set(':')
 
         for separator in bad_seps:
-            self._add_to_report(41, line_num, table=table, separator=separator)
+            success &= self._add_to_report(41, line_num, table=table,
+                                           separator=separator)
             utcoffset = utcoffset.replace(separator, ':')
 
         sign = r'(\+|-|\+-)?'
@@ -509,39 +549,44 @@ class ExtendedCSV(object):
             sign, hour, _, minute, _, second = match[0]
 
             if len(hour) < 2:
-                self._add_to_report(42, line_num, table=table,
-                                    component='hour')
+                success &= self._add_to_report(42, line_num, table=table,
+                                               component='hour')
                 hour = hour.rjust(2, '0')
 
             if not minute:
-                self._add_to_report(43, line_num, table=table,
-                                    component='minute')
+                success &= self._add_to_report(43, line_num, table=table,
+                                               component='minute')
                 minute = '00'
             elif len(minute) < 2:
-                self._add_to_report(42, line_num, table=table,
-                                    component='minute')
+                success &= self._add_to_report(42, line_num, table=table,
+                                               component='minute')
                 minute = minute.rjust(2, '0')
 
             if not second:
-                self._add_to_report(43, line_num, table=table,
-                                    component='second')
+                success &= self._add_to_report(43, line_num, table=table,
+                                               component='second')
                 second = '00'
             elif len(second) < 2:
-                self._add_to_report(42, line_num, table=table,
-                                    component='second')
+                success &= self._add_to_report(42, line_num, table=table,
+                                               component='second')
                 second = second.rjust(2, '0')
 
             if all([hour == '00', minute == '00', second == '00']):
                 if sign != '+':
-                    self._add_to_report(45, line_num, table=table, sign='+')
+                    success &= self._add_to_report(45, line_num, table=table,
+                                                   sign='+')
                     sign = '+'
             elif not sign:
-                self._add_to_report(44, line_num, table=table)
+                success &= self._add_to_report(44, line_num, table=table)
                 sign = '+'
             elif sign == '+-':
-                self._add_to_report(45, line_num, table=table, sign='-')
+                success &= self._add_to_report(45, line_num, table=table,
+                                               sign='-')
                 sign = '-'
 
+            if not success:
+                raise ValueError('Parsing errors encountered in #{}.UTCOffset'
+                                 .format(table))
             try:
                 magnitude = time(int(hour), int(minute), int(second))
                 return '{}{}'.format(sign, magnitude)
@@ -554,11 +599,15 @@ class ExtendedCSV(object):
         match = re.findall(template, utcoffset)
 
         if len(match) == 1:
-            self._add_to_report(46, line_num, table=table)
-            return '+00:00:00'
+            if self._add_to_report(46, line_num, table=table):
+                return '+00:00:00'
+            else:
+                raise ValueError('Parsing errors encountered in #{}.UTCOffset'
+                                 .format(table))
 
         self._add_to_report(47, line_num, table=table)
-        raise ValueError('')
+        raise ValueError('Parsing errors encountered in #{}.UTCOffset'
+                         .format(table))
 
     def gen_woudc_filename(self):
         """generate WOUDC filename convention"""
@@ -637,12 +686,12 @@ class ExtendedCSV(object):
 
             if count < lower:
                 line = self.line_num(table_type + '_' + str(count))
-                self._add_to_report(26, line, table=table_type, bound=lower)
-                success = False
+                success &= self._add_to_report(26, line, table=table_type,
+                                               bound=lower)
             if count > upper:
                 line = self.line_num(table_type + '_' + str(upper + 1))
-                self._add_to_report(27, line, table=table_type, bound=upper)
-                success = False
+                success &= self._add_to_report(27, line, table=table_type,
+                                               bound=upper)
 
         return success
 
@@ -670,16 +719,15 @@ class ExtendedCSV(object):
 
         if num_rows == 0:
             if is_required:
-                self._add_to_report(11, headerline, table=table)
-                success = False
+                success &= self._add_to_report(11, headerline, table=table)
             else:
-                self._add_to_report(12, headerline, table=table)
+                success &= self._add_to_report(12, headerline, table=table)
         elif num_rows < lower:
-            self._add_to_report(28, headerline, table=table, bound=lower)
-            success = False
+            success &= self._add_to_report(28, headerline, table=table,
+                                           bound=lower)
         elif num_rows > upper:
-            self._add_to_report(29, headerline, table=table, bound=upper)
-            success = False
+            success &= self._add_to_report(29, headerline, table=table,
+                                           bound=upper)
 
         return success
 
@@ -723,16 +771,16 @@ class ExtendedCSV(object):
         for missing in missing_fields:
             match_insensitive = provided_case_map.get(missing.lower(), None)
             if match_insensitive:
-                self._add_to_report(20, fieldline, table=table,
-                                    oldfield=match_insensitive,
-                                    newfield=missing)
+                success &= self._add_to_report(20, fieldline, table=table,
+                                               oldfield=match_insensitive,
+                                               newfield=missing)
 
                 self.extcsv[table][missing] = \
                     self.extcsv[table].pop(match_insensitive)
             else:
-                self._add_to_report(5, fieldline, table=table, field=missing)
+                success &= self._add_to_report(5, fieldline, table=table,
+                                               field=missing)
                 self.extcsv[table][missing] = null_value
-                success = False
 
         if len(missing_fields) == 0:
             LOGGER.debug('No missing fields in table {}'.format(table))
@@ -749,14 +797,15 @@ class ExtendedCSV(object):
                             .format(table, extra))
 
                 if extra != match_insensitive:
-                    self._add_to_report(20, fieldline, table=table,
-                                        oldfield=extra,
-                                        newfield=match_insensitive)
+                    success &= self._add_to_report(20, fieldline, table=table,
+                                                   oldfield=extra,
+                                                   newfield=match_insensitive)
 
                     self.extcsv[table][match_insensitive] = \
                         self.extcsv[table].pop(extra)
             else:
-                self._add_to_report(6, fieldline, table=table, field=extra)
+                success &= self._add_to_report(6, fieldline, table=table,
+                                               field=extra)
                 del self.extcsv[table][extra]
 
         # Check that no required fields have empty values.
@@ -765,8 +814,8 @@ class ExtendedCSV(object):
 
             if '' in column:
                 line = valueline + column.index('')
-                self._add_to_report(7, line, table=table, field=field)
-                success = False
+                success &= self._add_to_report(7, line, table=table,
+                                               field=field)
 
         return success
 
@@ -809,16 +858,17 @@ class ExtendedCSV(object):
                           if table.rstrip('0123456789_') in schema]
 
         if len(present_tables) == 0:
-            self._add_to_report(2, None)
-            raise NonStandardDataError(self.errors)
+            if self._add_to_report(2, None):
+                raise NonStandardDataError(self.errors)
         elif len(missing_tables) > 0:
             for missing in missing_tables:
-                self._add_to_report(3, None, table=missing)
-
-            msg = 'Not an Extended CSV file'
-            raise MetadataValidationError(msg, self.errors)
+                success &= self._add_to_report(3, None, table=missing)
         else:
             LOGGER.debug('No missing metadata tables')
+
+        if not success:
+            msg = 'Not an Extended CSV file'
+            raise MetadataValidationError(msg, self.errors)
 
         success &= self.check_table_occurrences(schema)
 
@@ -839,7 +889,7 @@ class ExtendedCSV(object):
 
         if success:
             self.collimate_tables(present_tables, schema)
-            LOGGER.debug('All tables in file validated.')
+            LOGGER.debug('All core tables in file validated.')
         else:
             raise MetadataValidationError('Invalid metadata', self.errors)
 
@@ -948,10 +998,9 @@ class ExtendedCSV(object):
 
         dataset = self.extcsv['CONTENT']['Category']
         for missing in missing_tables:
-            self._add_to_report(3, None, table=missing)
-            success = False
+            success &= self._add_to_report(3, None, table=missing)
 
-        success |= self.check_table_occurrences(schema)
+        success &= self.check_table_occurrences(schema)
 
         for table in present_tables:
             table_type = table.rstrip('0123456789_')
@@ -961,15 +1010,16 @@ class ExtendedCSV(object):
             arbitrary_column = next(iter(body.values()))
             num_rows = len(arbitrary_column)
 
-            success |= self.check_field_validity(table, definition)
-            success |= self.check_table_height(table, definition, num_rows)
+            success &= self.check_field_validity(table, definition)
+            success &= self.check_table_height(table, definition, num_rows)
 
             LOGGER.debug('Finished validating table {}'.format(table))
 
         for table in extra_tables:
             table_type = table.rstrip('0123456789_')
             if table_type not in optional_tables:
-                self._add_to_report(4, None, table=table, dataset=dataset)
+                success &= self._add_to_report(4, None, table=table,
+                                               dataset=dataset)
                 del self.extcsv[table]
 
         for table in optional_tables:
@@ -977,14 +1027,21 @@ class ExtendedCSV(object):
                 LOGGER.warning('Optional table {} is not in file.'.format(
                                table))
 
-        self.collimate_tables(present_tables, schema)
+        for i in range(1, self.table_count(observations_table) + 1):
+            table_name = observations_table + '_' + str(i) \
+                if i > 1 else observations_table
+            arbitrary_column = next(iter(self.extcsv[table_name].values()))
+
+            self.number_of_observations += len(arbitrary_column)
 
         if success:
-            LOGGER.debug('All dataset tables in file validated')
-        else:
-            raise MetadataValidationError('Dataset tables failed validation',
-                                          self.errors)
+            self.collimate_tables(present_tables, schema)
 
+            schema['data_table'] = observations_table
+            return success
+        else:
+            raise MetadataValidationError('Invalid dataset tables',
+                                          self.errors)
 
 class NonStandardDataError(Exception):
     """custom exception handler"""
