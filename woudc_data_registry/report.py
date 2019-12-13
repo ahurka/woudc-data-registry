@@ -78,15 +78,16 @@ class ReportBuilder:
         Logs that an error of type <error_code> was found at line <line>
         in an input file.
 
-        Returns False iff <error_code> matches an error severe enough
-        to abort a processing run.
+        Returns two elements: the first is the warning/error message string,
+        and the second is False iff <error_code> matches an error severe
+        enough to cause a processing run to abort.
 
         :param error_code: Numeric code of an error, as defined in the
                            error definition file.
         :param line: Line number where the error occurred, or None
                      if not applicable.
         :param kwargs: Keyword parameters to insert into the error message.
-        :returns: False iff a severe error has occurred.
+        :returns: Error message, and False iff a severe error has occurred.
         """
 
         try:
@@ -102,12 +103,8 @@ class ReportBuilder:
         self._report_batch['Error Type'].append(error_class)
         self._report_batch['Message'].append(message)
 
-        if error_class == 'Warning':
-            LOGGER.warning(message)
-            return False
-        else:
-            LOGGER.error(message)
-            return True
+        severe = error_class != 'Warning'
+        return message, severe
 
     def record_passing_file(self, filepath, extcsv, data_record):
         """
