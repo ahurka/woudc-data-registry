@@ -140,7 +140,7 @@ class Process(object):
         LOGGER.info('Processing file {}'.format(infile))
         LOGGER.info('Detecting file')
         if not is_text_file(infile):
-            self._add_to_report(1000, None)
+            self._add_to_report(1, None)
             return False
 
         try:
@@ -211,14 +211,14 @@ class Process(object):
                 elif self.add_deployment(bypass=bypass):
                     deployment_ok = True
 
-                    self._add_to_report(202, None, name=deployment_name)
+                    self._add_to_report(202, None, ident=deployment_id)
                 else:
                     msg = 'Deployment {} not added. Skipping file.' \
                           .format(deployment_id)
                     LOGGER.warning(msg)
 
                     line = self.extcsv.line_num('PLATFORM') + 2
-                    self._add_to_report(65, line, name=deployment_id)
+                    self._add_to_report(88, line, ident=deployment_id)
 
         LOGGER.debug('Validating instrument')
         if not all([dataset_ok, platform_ok]):
@@ -268,7 +268,7 @@ class Process(object):
 
         if not instrument_ok:
             line = self.extcsv.line_num('INSTRUMENT') + 2
-            self._add_to_report(139, line)
+            self._add_to_report(87, line)
 
             location_ok = False
         else:
@@ -481,7 +481,7 @@ class Process(object):
             return True
         else:
             line = self.extcsv.line_num('CONTENT') + 2
-            self._add_to_report(53, line, name=project)
+            self._add_to_report(51, line, value=project)
             return False
 
     def check_dataset(self):
@@ -509,7 +509,7 @@ class Process(object):
             return True
         else:
             line = self.extcsv.line_num('CONTENT') + 2
-            self._add_to_report(56, line, name=dataset)
+            self._add_to_report(52, line, value=dataset)
             return False
 
     def check_contributor(self):
@@ -530,8 +530,7 @@ class Process(object):
 
         if agency in ALIASES['Agency']:
             line = self.extcsv.line_num('DATA_GENERATION') + 2
-            self._add_to_report(1000, line, oldvalue=agency,
-                                newvalue=ALIASES['Agency'][agency])
+            self._add_to_report(23, line, newvalue=ALIASES['Agency'][agency])
 
             agency = ALIASES['Agency'][agency]
             self.extcsv.extcsv['DATA_GENERATION']['Agency'] = agency
@@ -555,7 +554,7 @@ class Process(object):
             return True
         else:
             line = self.extcsv.line_num('DATA_GENERATION') + 2
-            self._add_to_report(127, line, name=contributor['contributor_id'])
+            self._add_to_report(67, line)
             return False
 
     def check_station(self, bypass=False, verify=False):
@@ -585,12 +584,12 @@ class Process(object):
 
         water_codes = ['*IW', 'IW', 'XZ']
         if pl_type == 'SHP' and any([not country, country in water_codes]):
-            self._add_to_report(105, valueline, country=country)
+            self._add_to_report(75, valueline)
 
             self.extcsv.extcsv['PLATFORM']['Country'] = country = 'XY'
 
         if len(identifier) < 3:
-            self._add_to_report(1000, valueline, id=identifier)
+            self._add_to_report(70, valueline)
 
             identifier = identifier.rjust(3, '0')
             self.extcsv.extcsv['PLATFORM']['ID'] = identifier
@@ -608,7 +607,7 @@ class Process(object):
         if response:
             LOGGER.debug('Validated station with id: {}'.format(identifier))
         else:
-            self._add_to_report(129, valueline, id=identifier)
+            self._add_to_report(71, valueline)
             return False
 
         LOGGER.debug('Validating station type...')
@@ -618,7 +617,7 @@ class Process(object):
         if type_ok:
             LOGGER.debug('Validated station type {}'.format(type_ok))
         else:
-            self._add_to_report(128, valueline, id=pl_type)
+            self._add_to_report(72, valueline)
 
         LOGGER.debug('Validating station name...')
         model = {'station_id': identifier, 'name': station['current_name']}
@@ -637,7 +636,7 @@ class Process(object):
                         .format(station['current_name']))
             name_ok = True
         else:
-            self._add_to_report(130, valueline, name=name, id=identifier)
+            self._add_to_report(73, valueline, name=name)
 
         LOGGER.debug('Validating station country...')
         fields = ['station_id', 'country_id']
@@ -651,7 +650,7 @@ class Process(object):
                          .format(country.name_en, country.country_id,
                                  identifier))
         else:
-            self._add_to_report(131, valueline, country=country, id=identifier)
+            self._add_to_report(74, valueline)
 
         return type_ok and name_ok and country_ok
 
@@ -716,12 +715,12 @@ class Process(object):
         valueline = self.extcsv.line_num('INSTRUMENT') + 2
 
         if not name or name.lower() in ['na', 'n/a']:
-            self._add_to_report(72, valueline)
+            self._add_to_report(82, valueline)
             name_ok = False
 
             self.extcsv.extcsv['INSTRUMENT']['Name'] = name = 'UNKNOWN'
         if not model or str(model).lower() in ['na', 'n/a']:
-            self._add_to_report(1000, valueline)
+            self._add_to_report(83, valueline)
             model_ok = False
 
             self.extcsv.extcsv['INSTRUMENT']['Model'] = model = 'na'
@@ -740,7 +739,7 @@ class Process(object):
             name = response[0].name
             self.extcsv.extcsv['INSTRUMENT']['Name'] = response[0].name
         else:
-            self._add_to_report(1000, valueline, name=name)
+            self._add_to_report(85, valueline, name=name)
             name_ok = False
 
         # Check data registry for matching instrument model
@@ -750,8 +749,7 @@ class Process(object):
             model = response[0].model
             self.extcsv.extcsv['INSTRUMENT']['Model'] = response[0].model
         else:
-            msg = 'No match found for #INSTRUMENT.Model = {}'.format(model)
-            self._add_to_report(1000, valueline, model=model)
+            self._add_to_report(86, valueline)
             model_ok = False
 
         return name_ok and model_ok
@@ -817,11 +815,11 @@ class Process(object):
             if -90 <= lat_numeric <= 90:
                 LOGGER.debug('Validated instrument latitude')
             else:
-                self._add_to_report(76, valueline, field='Latitude',
+                self._add_to_report(78, valueline, field='Latitude',
                                     lower=-90, upper=90)
             lat_ok = True
         except ValueError:
-            self._add_to_report(75, valueline)
+            self._add_to_report(76, valueline, field='Longitude')
             lat_numeric = None
             lat_ok = False
 
@@ -830,11 +828,11 @@ class Process(object):
             if -180 <= lon_numeric <= 180:
                 LOGGER.debug('Validated instrument longitude')
             else:
-                self._add_to_report(76, valueline, field='Longitude',
+                self._add_to_report(78, valueline, field='Longitude',
                                     lower=-180, upper=180)
             lon_ok = True
         except ValueError:
-            self._add_to_report(75, valueline)
+            self._add_to_report(76, valueline, field='Longitude')
             lon_numeric = None
             lon_ok = False
 
@@ -843,9 +841,9 @@ class Process(object):
             if not height or -50 <= height_numeric <= 5100:
                 LOGGER.debug('Validated instrument height')
             else:
-                self._add_to_report(76, valueline, lower=-50, upper=5100)
+                self._add_to_report(79, valueline, lower=-50, upper=5100)
         except ValueError:
-            self._add_to_report(75, valueline)
+            self._add_to_report(77, valueline)
             height_numeric = None
 
         station_type = self.extcsv.extcsv['PLATFORM'].get('Type', 'STN')
@@ -863,16 +861,16 @@ class Process(object):
             instrument = result[0]
             if lat_numeric is not None and instrument.y is not None \
                and abs(lat_numeric - instrument.y) >= 1.5:
-                self._add_to_report(77, valueline, field='Latitude')
+                self._add_to_report(80, valueline, field='Latitude')
                 lat_ok = False
             if lon_numeric is not None and instrument.x is not None \
                and (lat_numeric is None or abs(lat_numeric) < 89.5) \
                and abs(lon_numeric - instrument.x) >= 1.5:
-                self._add_to_report(77, valueline, field='Longitude')
+                self._add_to_report(80, valueline, field='Longitude')
                 lon_ok = False
             if height_numeric is not None and instrument.z is not None \
                and abs(height_numeric - instrument.z) >= 1:
-                self._add_to_report(78, valueline)
+                self._add_to_report(81, valueline)
 
         return all([lat_ok, lon_ok])
 
@@ -900,31 +898,31 @@ class Process(object):
 
         if not level:
             if dataset == 'UmkehrN14' and 'C_PROFILE' in self.extcsv.extcsv:
-                self._add_to_report(59, valueline, value=2.0)
+                self._add_to_report(53, valueline, value=2.0)
                 self.extcsv.extcsv['CONTENT']['Level'] = level = 2.0
             else:
-                self._add_to_report(58, valueline, value=1.0)
+                self._add_to_report(53, valueline, value=1.0)
                 self.extcsv.extcsv['CONTENT']['Level'] = level = 1.0
         elif not isinstance(level, float):
             try:
-                self._add_to_report(57, valueline, oldvalue=level,
+                self._add_to_report(54, valueline, oldvalue=level,
                                     newvalue=float(level))
                 self.extcsv.extcsv['CONTENT']['Level'] = level = float(level)
             except ValueError:
-                self._add_to_report(60, valueline)
+                self._add_to_report(55, valueline)
                 level_ok = False
 
         if str(level) not in DOMAINS['Datasets'][dataset]:
-            self._add_to_report(60, valueline, dataset=dataset)
+            self._add_to_report(56, valueline, dataset=dataset)
             level_ok = False
 
         if not isinstance(form, int):
             try:
-                self._add_to_report(61, valueline, oldvalue=form,
+                self._add_to_report(57, valueline, oldvalue=form,
                                     newvalue=int(form))
                 self.extcsv.extcsv['CONTENT']['Form'] = form = int(form)
             except ValueError:
-                self._add_to_report(62, valueline)
+                self._add_to_report(58, valueline)
                 form_ok = False
 
         return level_ok and form_ok
@@ -948,7 +946,7 @@ class Process(object):
         valueline = self.extcsv.line_num('DATA_GENERATION')
 
         if not dg_date:
-            self._add_to_report(63, valueline)
+            self._add_to_report(62, valueline)
 
             kwargs = {key: getattr(self.process_start, key)
                       for key in ['year', 'month', 'day']}
@@ -960,7 +958,7 @@ class Process(object):
         try:
             numeric_version = float(version)
         except TypeError:
-            self._add_to_report(1000, valueline, default=1.0)
+            self._add_to_report(63, valueline, default=1.0)
 
             self.extcsv.extcsv['DATA_GENERATION']['Version'] = version = '1.0'
             numeric_version = 1.0
@@ -970,14 +968,14 @@ class Process(object):
                     version = version[:-2]
                 numeric_version = float(version)
             except ValueError:
-                self._add_to_report(68, valueline)
+                self._add_to_report(66, valueline)
                 version_ok = False
 
         if version_ok:
             if not 0 <= numeric_version <= 20:
-                self._add_to_report(66, values_line, lower=0.0, upper=20.0)
+                self._add_to_report(64, valueline, lower=0.0, upper=20.0)
             if str(version) == str(int(numeric_version)):
-                self._add_to_report(67, valueline)
+                self._add_to_report(65, valueline)
 
                 self.extcsv.extcsv['DATA_GENERATION']['Version'] = \
                     numeric_version
@@ -1010,7 +1008,7 @@ class Process(object):
 
             for line, other_date in enumerate(date_column, valueline):
                 if other_date > dg_date:
-                    err_code = 31 if table.startswith('TIMESTAMP') else 32
+                    err_code = 91 if table.startswith('TIMESTAMP') else 92
                     self._add_to_report(err_code, line, table=table)
 
             time_column = body.get('Time', [])
@@ -1020,7 +1018,7 @@ class Process(object):
             if ts_time:
                 for line, other_time in enumerate(time_column, valueline):
                     if other_time and other_time < ts_time:
-                        self._add_to_report(22, line)
+                        self._add_to_report(93, line)
 
         return dates_ok
 
@@ -1067,16 +1065,16 @@ class Process(object):
         version_ok = True
 
         if dg_date_before:
-            self._add_to_report(103, dg_valueline)
+            self._add_to_report(95, dg_valueline)
             dg_date_ok = False
         elif dg_date_equal and version_equal:
-            self._add_to_report(102, dg_valueline)
+            self._add_to_report(96, dg_valueline)
             dg_date_ok = version_ok = False
         elif dg_date_equal:
-            self._add_to_report(143, dg_valueline)
+            self._add_to_report(97, dg_valueline)
             dg_date_ok = False
         elif version_equal:
-            self._add_to_report(141, dg_valueline)
+            self._add_to_report(98, dg_valueline)
             version_ok = False
 
         instrument_name = self.extcsv.extcsv['INSTRUMENT']['Name']
@@ -1085,7 +1083,7 @@ class Process(object):
 
         if instrument_name == 'ECC' and instrument_serial != old_serial:
             instrument_valueline = self.extcsv.line_num('INSTRUMENT') + 2
-            self._add_to_report(145, instrument_valueline)
+            self._add_to_report(99, instrument_valueline)
 
         return dg_date_ok and version_ok
 

@@ -55,6 +55,7 @@ class ReportBuilder:
 
         with open(filepath) as error_definitions:
             reader = csv.reader(error_definitions, escapechar='\\')
+            next(reader)  # Skip header line.
 
             for row in reader:
                 error_code = int(row[0])
