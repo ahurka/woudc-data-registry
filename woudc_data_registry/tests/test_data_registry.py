@@ -47,8 +47,7 @@ from datetime import date, datetime, time
 import os
 import unittest
 
-from woudc_data_registry import (parser, processing, registry, search,
-                                 report, util)
+from woudc_data_registry import parser, report, util
 from woudc_data_registry import dataset_validators as dv
 from woudc_data_registry.parser import DOMAINS
 
