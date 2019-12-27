@@ -58,7 +58,7 @@ def dummy_extCSV(source):
     with dummy output settings (no logs or reports).
     """
 
-    report_ = report.ReportBuilder(None, 1)
+    report_ = report.ReportBuilder(None)
     return parser.ExtendedCSV(source, report_)
 
 

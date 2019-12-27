@@ -1,4 +1,5 @@
 
+import os
 import csv
 import logging
 
@@ -17,22 +18,25 @@ class ReportBuilder:
     directory, which are for tracking warnings and errors in the inputs.
     """
 
-    def __init__(self, root, run):
+    def __init__(self, root, run=0):
         """
         Initialize a new ReportBuilder working in the directory <root>.
 
         For use in dummy or verification-only runs, passing <root> as None
         causes no output files to be produced.
 
+        While <run> usually stands for the sequence number of a data
+        registry processing attempt, giving it special value 0 causes
+        it to derive a run number from previous output files in its
+        working directory.
+
         :param root: Path to the processing run's working directory.
         :param run: Sequence number of the current processing attempt in
-                    the processing run
+                    the processing run, or a special value (see above).
         """
 
         self._working_directory = root
         self._error_definitions = {}
-
-        self._run_number = run
 
         self._report_batch = {
             'Processing Status': '',
@@ -52,7 +56,28 @@ class ReportBuilder:
             'URN': ''
         }
 
+        if root is None:
+            self._run_number = 0
+        else:
+            self._run_number = run or self._determine_run_number()
+
         self.read_error_definitions(config.WDR_ERROR_CONFIG)
+
+    def _determine_run_number(self):
+        """
+        Returns the next run number that would continue the processing
+        run in this report's working directory, based on previous outputs.
+
+        :returns: Next run number in the working directory.
+        """
+
+        run_number = 1
+
+        # Count run reports in the working directory.
+        while os.path.exists(self.run_report_filepath(run_number)):
+            run_number += 1
+
+        return run_number
 
     def _flush_report_batch(self):
         """
