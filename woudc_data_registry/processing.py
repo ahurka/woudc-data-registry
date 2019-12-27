@@ -285,7 +285,7 @@ class Process(object):
         :returns: void
         """
 
-        data_records = []
+        data_records = set()
 
         LOGGER.info('Beginning persistence to data registry')
         for model in self._registry_updates:
@@ -293,7 +293,7 @@ class Process(object):
             self.registry.save(model)
 
             if isinstance(model, DataRecord):
-                data_records.append(model)
+                data_records.add(model)
 
         LOGGER.info('Beginning persistence to search index')
         for model in self._search_index_updates:
@@ -305,7 +305,7 @@ class Process(object):
                 prev_version = self.search_index.get_record_version(esid)
                 now_version = model.data_generation_version
 
-                if prev_version or now_version > prev_version:
+                if not prev_version or now_version > prev_version:
                     allow_update_model = True
                     data_records.append(model)
                 else:
@@ -315,10 +315,11 @@ class Process(object):
                 LOGGER.debug('Saving {} to search index'.format(str(model)))
                 self.search_index.index(type(model), model.__geo_interface__)
 
+        LOGGER.info('Saving data record CSVs to WAF')
         for record in data_records:
-            LOGGER.info('Saving data record CSV to WAF')
-            os.makedirs(os.path.dirname(record.output_filepath), exist_ok=True)
-            shutil.copy2(record.ingest_filepath, record.output_filepath)
+            waf_filepath = record.get_waf_path(config.WDR_WAF_BASEDIR)
+            os.makedirs(os.path.dirname(waf_filepath), exist_ok=True)
+            shutil.copy2(record.ingest_filepath, waf_filepath)
 
         LOGGER.info('Persistence complete')
         self._registry_updates = []
