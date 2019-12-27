@@ -2,6 +2,8 @@
 import csv
 import logging
 
+from datetime import date
+
 from woudc_data_registry import config
 
 
@@ -15,15 +17,22 @@ class ReportBuilder:
     directory, which are for tracking warnings and errors in the inputs.
     """
 
-    def __init__(self, root):
+    def __init__(self, root, run):
         """
         Initialize a new ReportBuilder working in the directory <root>.
 
+        For use in dummy or verification-only runs, passing <root> as None
+        causes no output files to be produced.
+
         :param root: Path to the processing run's working directory.
+        :param run: Sequence number of the current processing attempt in
+                    the processing run
         """
 
         self._working_directory = root
         self._error_definitions = {}
+
+        self._run_number = run
 
         self._report_batch = {
             'Processing Status': '',
@@ -45,23 +54,6 @@ class ReportBuilder:
 
         self.read_error_definitions(config.WDR_ERROR_CONFIG)
 
-    def read_error_definitions(self, filepath):
-        """
-        Loads the error definitions found in <filepath> to apply those
-        rules to future error/warning determination.
-
-        :param filepath: Path to an error definition file.
-        :returns: void
-        """
-
-        with open(filepath) as error_definitions:
-            reader = csv.reader(error_definitions, escapechar='\\')
-            next(reader)  # Skip header line.
-
-            for row in reader:
-                error_code = int(row[0])
-                self._error_definitions[error_code] = row[1:]
-
     def _flush_report_batch(self):
         """
         Empties out the stored report batch in preparation for starting to
@@ -78,6 +70,74 @@ class ReportBuilder:
                 self._report_batch[field] = ''
             else:
                 self._report_batch[field].clear()
+
+    def run_report_filepath(self, run=0):
+        """
+        Returns a full path to the runport from the <run>'th
+        processing attempt in this report's working directory.
+
+        :param run: Optional run number of operator report to look for.
+                    If omitted uses the instance's run number.
+        :returns: Full path to specified runport.
+        """
+
+        filename = 'run{}'.format(self._run_number)
+
+        if self._working_dir is None:
+            return filename
+        else:
+            return os.path.join(self._working_dir, filename)
+
+    def operator_report_filepath(self, run=0):
+        """
+        Returns a full path to the operator report from the <run>'th
+        processing attempt from today in this report's working directory.
+
+        :param run: Optional run number of operator report to look for.
+                    If omitted uses the instance's run number.
+        :returns: Full path to specified operator report.
+        """
+
+        today = date.today().strftime('%Y-%m-%d')
+        filename = 'operator-report-{}-run{}.csv'.format(today,
+                                                         self._run_number)
+        if self._working_dir is None:
+            return filename
+        else:
+            return os.path.join(self._working_dir, filename)
+
+    def email_report_filepath(self):
+        """
+        Returns a full path to the email report for the processing run
+        in this report's working directory.
+
+        :returns: Full path to the processing run's email report.
+        """
+
+        today = date.today().strftime('%Y-%m-%d')
+        filename = 'failed-files-{}'.format(today)
+
+        if self._working_dir is None:
+            return filename
+        else:
+            return os.path.join(self._working_dir, filename)
+
+    def read_error_definitions(self, filepath):
+        """
+        Loads the error definitions found in <filepath> to apply those
+        rules to future error/warning determination.
+
+        :param filepath: Path to an error definition file.
+        :returns: void
+        """
+
+        with open(filepath) as error_definitions:
+            reader = csv.reader(error_definitions, escapechar='\\')
+            next(reader)  # Skip header line.
+
+            for row in reader:
+                error_code = int(row[0])
+                self._error_definitions[error_code] = row[1:]
 
     def add_message(self, error_code, line, **kwargs):
         """
