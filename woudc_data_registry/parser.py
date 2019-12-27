@@ -270,7 +270,7 @@ class ExtendedCSV(object):
         fillins = len(fields) - len(values)
 
         if fillins < 0:
-            success &= self._add_to_report(25, line_num)
+            success &= self._add_to_report(25, line_num, table=table_name)
 
         values.extend([''] * fillins)
         values = values[:len(fields)]

@@ -113,7 +113,8 @@ Error Code,Error Type,Message Template,Notes
 123,Warning,#TIMESTAMP table after #{table} is missing\, deriving based on requirements,Reserved for Umkehr data tables
 125,Error,Lidar table counts are uneven between #OZONE_PROFILE and #OZONE_SUMMARY
 126,Error,Spectral table counts are uneven between #TIMESTAMP\, #GLOBAL\, and #{summary_table}
-201,Warning,New instrument {ident} added
-202,Warning,New deployment {ident} added
-203,Warning,New station name {ident} added
+200,Warning,Data file successfully persisted
+201,Warning,New instrument added
+202,Warning,New deployment added
+203,Warning,New station name added
 1000,Error,Unassigned error message
