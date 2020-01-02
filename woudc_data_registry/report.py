@@ -219,10 +219,10 @@ class ReportBuilder:
         today = date.today().strftime('%Y-%m-%d')
         filename = 'failed-files-{}'.format(today)
 
-        if self._working_dir is None:
+        if self._working_directory is None:
             return filename
         else:
-            return os.path.join(self._working_dir, filename)
+            return os.path.join(self._working_directory, filename)
 
     def read_error_definitions(self, filepath):
         """
