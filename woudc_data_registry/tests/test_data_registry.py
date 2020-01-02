@@ -1531,7 +1531,7 @@ class ReportGenerationTest(unittest.TestCase):
         self.assertTrue(success)
 
     def test_passing_operator_report(self):
-        """ Test that a passing file is written in the operator report """
+        """Test that a passing file is written in the operator report"""
 
         output_root = resolve_test_data_path('data/reports/sandbox')
         infile = resolve_test_data_path(
@@ -1569,8 +1569,38 @@ class ReportGenerationTest(unittest.TestCase):
             with self.assertRaises(StopIteration):
                 next(reader)
 
+    def test_passing_run_report(self):
+        """Test that a passing file is written to the run report"""
+
+        output_root = resolve_test_data_path('data/reports/sandbox')
+        infile = resolve_test_data_path(
+            'data/general/20080101.Kipp_Zonen.UV-S-E-T.000560.PMOD-WRC.csv')
+        contents = util.read_file(infile)
+
+        reporter = report.ReportBuilder(output_root)
+        ecsv = parser.ExtendedCSV(contents, reporter)
+
+        ecsv.validate_metadata_tables()
+        ecsv.validate_dataset_tables()
+        data_record = models.DataRecord(ecsv)
+
+        agency = ecsv.extcsv['DATA_GENERATION']['Agency']
+        output_path = os.path.join(output_root, 'run1')
+
+        reporter.add_message(200, None)
+        reporter.record_passing_file(infile, ecsv, data_record)
+        reporter.close()
+
+        self.assertTrue(os.path.exists(output_path))
+        with open(output_path) as output:
+            lines = output.read().splitlines()
+            self.assertEquals(len(lines), 2)
+
+            self.assertEquals(lines[0], agency)
+            self.assertEquals(lines[1], 'Pass: {}'.format(infile))
+
     def test_warning_operator_report(self):
-        """ Test that file warnings are written in the operator report """
+        """Test that file warnings are written in the operator report"""
 
         output_root = resolve_test_data_path('data/reports/sandbox')
         infile = resolve_test_data_path(
@@ -1620,7 +1650,7 @@ class ReportGenerationTest(unittest.TestCase):
                 next(reader)
 
     def test_failing_operator_report(self):
-        """ Test that a failing file is written in the operator report """
+        """Test that a failing file is written in the operator report"""
 
         output_root = resolve_test_data_path('data/reports/sandbox')
         infile = resolve_test_data_path(
@@ -1636,8 +1666,9 @@ class ReportGenerationTest(unittest.TestCase):
         try:
             ecsv = parser.ExtendedCSV(contents, reporter)
             ecsv.validate_metadata_tables()
-            ecsv.validate_dataset_tables()
+            agency = ecsv.extcsv['DATA_GENERATION']['Agency']
 
+            ecsv.validate_dataset_tables()
             raise AssertionError('Parsing of {} did not fail'.format(infile))
         except (parser.MetadataValidationError, parser.NonStandardDataError):
             output_path = os.path.join(output_root, 'run1')
@@ -1681,6 +1712,72 @@ class ReportGenerationTest(unittest.TestCase):
 
             with self.assertRaises(StopIteration):
                 next(reader)
+
+    def test_failing_run_report(self):
+        """Test that a failing file is written to the run report"""
+
+        output_root = resolve_test_data_path('data//reports/sandbox')
+        infile = resolve_test_data_path(
+            'data/general/ecsv-missing-instrument-number.csv')
+        contents = util.read_file(infile)
+
+        reporter = report.ReportBuilder(output_root)
+        ecsv = None
+
+        # Agency typically filled in with FTP username for failing files.
+        agency = 'rmda'
+
+        try:
+            ecsv = parser.ExtendedCSV(contents, reporter)
+            ecsv.validate_metadata_tables()
+            agency = ecsv.extcsv['DATA_GENERATION']['Agency']
+
+            ecsv.validate_dataset_tables()
+            raise AssertionError('Parsing of {} did not fail'.format(infile))
+        except (parser.MetadataValidationError, parser.NonStandardDataError):
+            output_path = os.path.join(output_root, 'run1')
+
+            reporter.add_message(209, None)
+            reporter.record_failing_file(infile, agency, ecsv)
+            reporter.close()
+
+        self.assertTrue(os.path.exists(output_path))
+        with open(output_path) as output:
+            lines = output.read().splitlines()
+            self.assertEquals(len(lines), 2)
+
+            self.assertEquals(lines[0], agency)
+            self.assertEquals(lines[1], 'Fail: {}'.format(infile))
+
+    def test_non_extcsv_run_report(self):
+        """Test that an unparseable file is written to the run report"""
+
+        output_root = resolve_test_data_path('data/reports/sandbox')
+        infile = resolve_test_data_path('data/general/not-an-ecsv.dat')
+        contents = util.read_file(infile)
+
+        reporter = report.ReportBuilder(output_root)
+        ecsv = None
+
+        agency = 'UNKNOWN'
+
+        try:
+            ecsv = parser.ExtendedCSV(contents, reporter)
+            raise AssertionError('Parsing of {} did not fail'.format(infile))
+        except (parser.MetadataValidationError, parser.NonStandardDataError):
+            output_path = os.path.join(output_root, 'run1')
+
+            reporter.add_message(209, None)
+            reporter.record_failing_file(infile, agency, ecsv)
+            reporter.close()
+
+            self.assertTrue(os.path.exists(output_path))
+            with open(output_path) as output:
+                lines = output.read().splitlines()
+                self.assertEquals(len(lines), 2)
+
+                self.assertEquals(lines[0], agency)
+                self.assertEquals(lines[1], 'Fail: {}'.format(infile))
 
 
 if __name__ == '__main__':
