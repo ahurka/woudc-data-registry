@@ -13,6 +13,38 @@ from woudc_data_registry import config
 LOGGER = logging.getLogger(__name__)
 
 
+def _group_dict_keys(source):
+    """
+    Returns a modified versions of the argument, in which tuples
+    of keys with shared values map to sets of those values.
+    Each value is represented with one entire group as a key.
+
+    Values in the <source> dictionary are lists of hashable values.
+
+    :param source: A `dict` with hashable values.
+    :returns: Another `dict` with groups of keys mapping to their
+              shared values.
+    """
+
+    inverted = {}
+    collected = {}
+
+    for key, valuelist in source.items():
+        for value in valuelist:
+            if value not in inverted:
+                inverted[value] = set()
+            inverted[value].add(key)
+
+    for value, keylist in inverted.items():
+        standard_keylist = tuple(sorted(list(keylist)))
+
+        if standard_keylist not in collected:
+            collected[standard_keylist] = set()
+        collected[standard_keylist].add(value)
+
+    return collected
+
+
 class ReportBuilder:
     """
     Manages accounting and file outputs during a processing run.
@@ -525,31 +557,16 @@ class ReportBuilder:
         :returns: void
         """
 
-        passed_files, fixed_files_to_errors, failed_files_to_errors = \
+        passed_files, fixed_files, failed_files = \
             self._processing_run_statistics()
 
-        # Invert the error dictionaries, so that their nested dictionaries
-        # have errors mapped to files that encountered those error.
-        failed_files = {}
-        fixed_files = {}
+        failed_files_collected = {}
+        fixed_files_collected = {}
 
-        for agency in failed_files_to_errors:
-            failed_files[agency] = {}
-
-            for filename, errorlist in failed_files_to_errors[agency].items():
-                for error in errorlist:
-                    if error not in failed_files[agency]:
-                        failed_files[agency][error] = set()
-                    failed_files[agency][error].add(filename)
-
-        for agency in fixed_files_to_errors:
-            fixed_files[agency] = {}
-
-            for filename, errorlist in fixed_files_to_errors[agency].items():
-                for error in errorlist:
-                    if error not in fixed_files[agency]:
-                        fixed_files[agency][error] = set()
-                    fixed_files[agency][error].add(filename)
+        for agency, error_map in failed_files.items():
+            failed_files_collected[agency] = _group_dict_keys(error_map)
+        for agency, error_map in fixed_files.items():
+            fixed_files_collected[agency] = _group_dict_keys(error_map)
 
         agencies = set(passed_files.keys()) | set(fixed_files.keys()) \
             | set(failed_files.keys())
@@ -588,8 +605,9 @@ class ReportBuilder:
                 if failed_count > 0:
                     fail_summary = 'Summary of Failures:\n'
 
-                    for error, filelist in failed_files[agency].items():
-                        fail_summary += '{}\n'.format(error)
+                    for filelist in failed_files_collected[agency]:
+                        errorlist = failed_files_collected[agency][filelist]
+                        fail_summary += '\n'.join(errorlist) + '\n'
                         fail_summary += '\n'.join(sorted(filelist)) + '\n'
 
                     feedback += fail_summary
@@ -597,8 +615,9 @@ class ReportBuilder:
                 if fixed_count > 0:
                     fix_summary = 'Summary of Fixes:\n'
 
-                    for error, filelist in fixed_files[agency].items():
-                        fix_summary += '{}\n'.format(error)
+                    for filelist in fixed_files_collectied[agency]:
+                        errorlist = fixed_files_collectied[agency][filelist]
+                        fix_summary += '\n'.join(errorlist) + '\n'
                         fix_summary += '\n'.join(sorted(filelist)) + '\n'
 
                     feedback += fix_summary
