@@ -615,8 +615,8 @@ class ReportBuilder:
                 if fixed_count > 0:
                     fix_summary = 'Summary of Fixes:\n'
 
-                    for filelist in fixed_files_collectied[agency]:
-                        errorlist = fixed_files_collectied[agency][filelist]
+                    for filelist in fixed_files_collected[agency]:
+                        errorlist = fixed_files_collected[agency][filelist]
                         fix_summary += '\n'.join(errorlist) + '\n'
                         fix_summary += '\n'.join(sorted(filelist)) + '\n'
 
