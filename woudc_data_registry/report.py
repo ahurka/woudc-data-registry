@@ -220,7 +220,7 @@ class ReportBuilder:
                         if agency not in passed_files:
                             passed_files[agency] = set()
                         passed_files[agency].add(filename)
-                    elif error_type == 'Error':
+                    elif error_type == 'Error' and error_code != 209:
                         # Ignore duplicate version errors if an already-passed
                         # file is accidentally run again.
                         if filename not in passed_files.get(agency, set()):
@@ -525,11 +525,34 @@ class ReportBuilder:
         :returns: void
         """
 
-        passed_files, fixed_files, failed_files = \
+        passed_files, fixed_files_to_errors, failed_files_to_errors = \
             self._processing_run_statistics()
 
+        # Invert the error dictionaries, so that their nested dictionaries
+        # have errors mapped to files that encountered those error.
+        failed_files = {}
+        fixed_files = {}
+
+        for agency in failed_files_to_errors:
+            failed_files[agency] = {}
+
+            for filename, errorlist in failed_files_to_errors[agency].items():
+                for error in errorlist:
+                    if error not in failed_files[agency]:
+                        failed_files[agency][error] = set()
+                    failed_files[agency][error].add(filename)
+
+        for agency in fixed_files_to_errors:
+            fixed_files[agency] = {}
+
+            for filename, errorlist in fixed_files_to_errors[agency].items():
+                for error in errorlist:
+                    if error not in fixed_files[agency]:
+                        fixed_files[agency][error] = set()
+                    fixed_files[agency][error].add(filename)
+
         agencies = set(passed_files.keys()) | set(fixed_files.keys()) \
-                   | set(failed_files.keys())
+            | set(failed_files.keys())
         sorted_agencies = sorted(list(agencies))
 
         if 'UNKNOWN' in sorted_agencies:
@@ -561,6 +584,24 @@ class ReportBuilder:
                     'Number of failed files: {}\n' \
                     .format(header, total_count, passed_count,
                             fixed_count, failed_count)
+
+                if failed_count > 0:
+                    fail_summary = 'Summary of Failures:\n'
+
+                    for error, filelist in failed_files[agency].items():
+                        fail_summary += '{}\n'.format(error)
+                        fail_summary += '\n'.join(sorted(filelist)) + '\n'
+
+                    feedback += fail_summary
+
+                if fixed_count > 0:
+                    fix_summary = 'Summary of Fixes:\n'
+
+                    for error, filelist in fixed_files[agency].items():
+                        fix_summary += '{}\n'.format(error)
+                        fix_summary += '\n'.join(sorted(filelist)) + '\n'
+
+                    feedback += fix_summary
 
                 blocks.append(feedback)
 
