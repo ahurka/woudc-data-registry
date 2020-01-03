@@ -120,6 +120,7 @@ class ReportBuilder:
             if re.match(operator_report_pattern, filename):
                 operator_reports.append(filename)
 
+        operator_reports.sort()
         return operator_reports
 
     def _determine_run_number(self):
@@ -258,16 +259,16 @@ class ReportBuilder:
                         if filename not in passed_files.get(agency, set()):
                             local_files_to_errors[agency][filename].add(msg)
 
+                # Check for errors fixed in the current report.
                 for agency in files_to_errors:
                     if agency not in passed_files:
                         passed_files[agency] = set()
                     if agency not in files_to_fixes:
-                        files_to_fixes[agency] = set()
+                        files_to_fixes[agency] = {}
                     if agency not in local_files_to_errors:
                         local_files_to_errors[agency] = {}
 
-                    # Check for errors fixed in the current report.
-                    for filename in files_to_errors[agency]:
+                    for filename in list(files_to_errors[agency].keys()):
                         if filename not in local_files_to_errors[agency]:
                             local_files_to_errors[agency][filename] = set()
 
@@ -278,6 +279,7 @@ class ReportBuilder:
 
                             files_to_fixes[agency][filename].update(
                                 files_to_errors[agency].pop(filename))
+                            passed_files[agency].remove(filename)
 
                 # Look for new errors from the current report.
                 for agency in local_files_to_errors:

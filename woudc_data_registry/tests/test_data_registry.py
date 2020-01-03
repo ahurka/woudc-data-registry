@@ -2206,7 +2206,7 @@ class ReportGenerationTest(unittest.TestCase):
                               '{} ({})'.format(agency, emails[agency]))
             self.assertEquals(lines[16], 'Total files received: 3')
             self.assertEquals(lines[17], 'Number of passed files: 3')
-            self.assertEquals(lines[18], 'Number of manually repaired files: 0')
+            self.assertEquals(lines[18], 'Number of manually repaired files: 0')  # noqa
             self.assertEquals(lines[19], 'Number of failed files: 0')
 
             agency = 'MSC'
@@ -2214,12 +2214,107 @@ class ReportGenerationTest(unittest.TestCase):
                               '{} ({})'.format(agency, emails[agency]))
             self.assertEquals(lines[22], 'Total files received: 5')
             self.assertEquals(lines[23], 'Number of passed files: 4')
-            self.assertEquals(lines[24], 'Number of manually repaired files: 0')
+            self.assertEquals(lines[24], 'Number of manually repaired files: 0')  # noqa
             self.assertEquals(lines[25], 'Number of failed files: 1')
 
             self.assertEquals(lines[26], 'Summary of Failures:')
             self.assertNotIn('.csv', lines[27])
             self.assertEquals(lines[28], 'file4.csv')
+
+    def test_email_report_multiple_runs(self):
+        """Test email report generation across multiple processing calls"""
+
+        output_root = resolve_test_data_path(
+            'data/reports/dummy_runs/multiple_runs')
+        reporter = report.ReportBuilder(output_root)
+
+        emails = {
+            'CAS-IAP': 'casiap@mail.com',
+            'DWD-MOHp': 'dwd@mail.com',
+            'MLCD-LU': 'mlcd@mail.com',
+            'MSC': 'msc@mail.com'
+        }
+        reporter.write_email_report(emails)
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        output_path = os.path.join(output_root,
+                                   'failed-files-{}'.format(today))
+
+        self.assertTrue(os.path.exists(output_path))
+        with open(output_path) as output:
+            lines = output.read().splitlines()
+            self.assertEquals(len(lines), 29)
+
+            agency = 'CAS-IAP'
+            self.assertEquals(lines[0],
+                              '{} ({})'.format(agency, emails[agency]))
+            self.assertEquals(lines[1], 'Total files received: 1')
+            self.assertEquals(lines[2], 'Number of passed files: 1')
+            self.assertEquals(lines[3], 'Number of manually repaired files: 0')
+            self.assertEquals(lines[4], 'Number of failed files: 0')
+
+            agency = 'DWD-MOHp'
+            self.assertEquals(lines[6],
+                              '{} ({})'.format(agency, emails[agency]))
+            self.assertEquals(lines[7], 'Total files received: 3')
+            self.assertEquals(lines[8], 'Number of passed files: 2')
+            self.assertEquals(lines[9], 'Number of manually repaired files: 0')
+            self.assertEquals(lines[10], 'Number of failed files: 1')
+
+            self.assertEquals(lines[11], 'Summary of Failures:')
+            self.assertNotIn('.csv', lines[12])
+            self.assertEquals(lines[13], 'file2.csv')
+
+            agency = 'MLCD-LU'
+            self.assertEquals(lines[15],
+                              '{} ({})'.format(agency, emails[agency]))
+            self.assertEquals(lines[16], 'Total files received: 3')
+            self.assertEquals(lines[17], 'Number of passed files: 3')
+            self.assertEquals(lines[18], 'Number of manually repaired files: 0')  # noqa
+            self.assertEquals(lines[19], 'Number of failed files: 0')
+
+            agency = 'MSC'
+            self.assertEquals(lines[21],
+                              '{} ({})'.format(agency, emails[agency]))
+            self.assertEquals(lines[22], 'Total files received: 5')
+            self.assertEquals(lines[23], 'Number of passed files: 4')
+            self.assertEquals(lines[24], 'Number of manually repaired files: 0')  # noqa
+            self.assertEquals(lines[25], 'Number of failed files: 1')
+
+            self.assertEquals(lines[26], 'Summary of Failures:')
+            self.assertNotIn('.csv', lines[27])
+            self.assertEquals(lines[28], 'file4.csv')
+
+    def test_email_report_fix(self):
+        """Test email report generation when files are fixed between runs"""
+
+        output_root = resolve_test_data_path('data/reports/dummy_runs/one_fix')
+        reporter = report.ReportBuilder(output_root)
+
+        emails = {'MSC': 'placeholder@mail.com'}
+        reporter.write_email_report(emails)
+
+        today = datetime.now().strftime('%Y-%m-%d')
+        output_path = os.path.join(output_root,
+                                   'failed-files-{}'.format(today))
+
+        self.assertTrue(os.path.exists(output_path))
+        with open(output_path) as output:
+            lines = output.read().splitlines()
+            self.assertEquals(len(lines), 8)
+
+            agency = 'MSC'
+            address = emails[agency]
+
+            self.assertEquals(lines[0], '{} ({})'.format(agency, address))
+            self.assertEquals(lines[1], 'Total files received: 1')
+            self.assertEquals(lines[2], 'Number of passed files: 0')
+            self.assertEquals(lines[3], 'Number of manually repaired files: 1')
+            self.assertEquals(lines[4], 'Number of failed files: 0')
+
+            self.assertEquals(lines[5], 'Summary of Fixes:')
+            self.assertNotIn('.csv', lines[6])
+            self.assertEquals(lines[7], 'file1.csv')
 
 
 if __name__ == '__main__':
