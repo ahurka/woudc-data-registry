@@ -174,6 +174,92 @@ class ReportBuilder:
             else:
                 self._report_batch[field].clear()
 
+    def _processing_run_statistics(self):
+        """
+        Returns a summary of passing files, repaired files, and failed files
+        per agency throughout the past processing run. Statistics are
+        determined using report files in the working directory.
+
+        The summary is a tuple of dictionaries. The first maps agency acronym
+        to list of filepaths that passed the first time. The second dictionary
+        maps agencies to another dictionary of files to error codes that were
+        fixed between runs. The third element is analogous, except the error
+        codes were not repaired.
+
+        :returns: A tuple of passes, fixes, and failures among input files.
+        """
+
+        passed_files = {}
+        files_to_fixes = {}
+        files_to_errors = {}
+
+        operator_reports = self._find_operator_reports()
+        for report_filename in operator_reports:
+            fullpath = os.path.join(self._working_directory, report_filename)
+
+            with open(fullpath) as operator_report:
+                local_files_to_errors = {}
+                reader = csv.reader(operator_report, escapechar='\\')
+                next(reader)
+
+                for line in reader:
+                    agency = line[8] or 'UNKNOWN'
+                    filename = line[11]
+
+                    status = line[0]
+                    error_type = line[1]
+                    error_code = int(line[2])
+                    msg = line[4]
+
+                    if agency not in local_files_to_errors:
+                        local_files_to_errors[agency] = {}
+                    if filename not in local_files_to_errors[agency]:
+                        local_files_to_errors[agency][filename] = set()
+
+                    if status == 'P':
+                        if agency not in passed_files:
+                            passed_files[agency] = set()
+                        passed_files[agency].add(filename)
+                    elif error_type == 'Error':
+                        # Ignore duplicate version errors if an already-passed
+                        # file is accidentally run again.
+                        if filename not in passed_files.get(agency, set()):
+                            local_files_to_errors[agency][filename].add(msg)
+
+                for agency in files_to_errors:
+                    if agency not in passed_files:
+                        passed_files[agency] = set()
+                    if agency not in files_to_fixes:
+                        files_to_fixes[agency] = set()
+                    if agency not in local_files_to_errors:
+                        local_files_to_errors[agency] = {}
+
+                    # Check for errors fixed in the current report.
+                    for filename in files_to_errors[agency]:
+                        if filename not in local_files_to_errors[agency]:
+                            local_files_to_errors[agency][filename] = set()
+
+                        if filename in passed_files[agency] \
+                           and filename in files_to_errors[agency]:
+                            if filename not in files_to_fixes[agency]:
+                                files_to_fixes[agency][filename] = set()
+
+                            files_to_fixes[agency][filename].update(
+                                files_to_errors[agency].pop(filename))
+
+                # Look for new errors from the current report.
+                for agency in local_files_to_errors:
+                    if agency not in files_to_errors:
+                        files_to_errors[agency] = {}
+
+                    for filename in local_files_to_errors[agency]:
+                        for error in local_files_to_errors[agency][filename]:
+                            if filename not in files_to_errors[agency]:
+                                files_to_errors[agency][filename] = set()
+                            files_to_errors[agency][filename].add(error)
+
+        return passed_files, files_to_fixes, files_to_errors
+
     def run_report_filepath(self, run=0):
         """
         Returns a full path to the runport from the <run>'th
@@ -433,17 +519,52 @@ class ReportBuilder:
         The file describes, per agency, how many files in the whole
         processing run failed, were recovered, or passed the first time.
 
-        The email summary is generated from the operator reports in the
-        working directory. That is, the operator reports determine
-        what counts as an error or a pass or a fail.
-
         See processing workflow for more information.
 
         :param addresses: Map of contributor acronym to email address.
         :returns: void
         """
 
-        pass
+        passed_files, fixed_files, failed_files = \
+            self._processing_run_statistics()
+
+        agencies = set(passed_files.keys()) | set(fixed_files.keys()) \
+                   | set(failed_files.keys())
+        sorted_agencies = sorted(list(agencies))
+
+        if 'UNKNOWN' in sorted_agencies:
+            # Move UNKNOWN to be always at the end of the report.
+            sorted_agencies.remove('UNKNOWN')
+            sorted_agencies.append('UNKNOWN')
+
+        email_report_path = self.email_report_filepath()
+        with open(email_report_path, 'w') as email_report:
+            blocks = []
+
+            for agency in sorted_agencies:
+                passed_count = len(passed_files.get(agency, {}))
+                fixed_count = len(fixed_files.get(agency, {}))
+                failed_count = len(failed_files.get(agency, {}))
+
+                total_count = passed_count + fixed_count + failed_count
+
+                if agency in addresses:
+                    email = addresses[agency]
+                    header = '{} ({})'.format(agency, email)
+                else:
+                    header = agency
+
+                feedback = '{}\n' \
+                    'Total files received: {}\n' \
+                    'Number of passed files: {}\n' \
+                    'Number of manually repaired files: {}\n' \
+                    'Number of failed files: {}\n' \
+                    .format(header, total_count, passed_count,
+                            fixed_count, failed_count)
+
+                blocks.append(feedback)
+
+            email_report.write('\n'.join(blocks))
 
     def close(self):
         """
