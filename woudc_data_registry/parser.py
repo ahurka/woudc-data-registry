@@ -661,7 +661,10 @@ class ExtendedCSV(object):
                 ]
 
                 if schema[table_type]['rows'] == 1:
-                    self.extcsv[table_name][field] = converted[0]
+                    if len(converted) > 0:
+                        self.extcsv[table_name][field] = converted[0]
+                    else:
+                        self.extcsv[table_name][field] = ''
                 else:
                     self.extcsv[table_name][field] = converted
 
@@ -852,23 +855,19 @@ class ExtendedCSV(object):
         schema = DOMAINS['Common']
         success = True
 
-        missing_tables = [table for table in schema
+        missing_tables = [table for table in schema.keys()
                           if table not in self.extcsv.keys()]
         present_tables = [table for table in self.extcsv.keys()
                           if table.rstrip('0123456789_') in schema]
 
         if len(present_tables) == 0:
-            if self._add_to_report(2, None):
+            if not self._add_to_report(2, None):
                 raise NonStandardDataError(self.errors)
         elif len(missing_tables) > 0:
             for missing in missing_tables:
                 success &= self._add_to_report(3, None, table=missing)
         else:
             LOGGER.debug('No missing metadata tables')
-
-        if not success:
-            msg = 'Not an Extended CSV file'
-            raise MetadataValidationError(msg, self.errors)
 
         success &= self.check_table_occurrences(schema)
 
@@ -887,8 +886,9 @@ class ExtendedCSV(object):
                 if field not in self.extcsv[table]:
                     self.extcsv[table][field] = [''] * num_rows
 
+        self.collimate_tables(present_tables, schema)
+
         if success:
-            self.collimate_tables(present_tables, schema)
             LOGGER.debug('All core tables in file validated.')
         else:
             raise MetadataValidationError('Invalid metadata', self.errors)
@@ -1034,10 +1034,10 @@ class ExtendedCSV(object):
 
             self.number_of_observations += len(arbitrary_column)
 
-        if success:
-            self.collimate_tables(present_tables, schema)
+        self.collimate_tables(present_tables, schema)
+        schema['data_table'] = observations_table
 
-            schema['data_table'] = observations_table
+        if success:
             return success
         else:
             raise MetadataValidationError('Invalid dataset tables',
