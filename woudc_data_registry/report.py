@@ -232,6 +232,8 @@ class ReportBuilder:
 
             with open(fullpath) as operator_report:
                 local_files_to_errors = {}
+                files_encountered = {}
+
                 reader = csv.reader(operator_report, escapechar='\\')
                 next(reader)
 
@@ -243,6 +245,10 @@ class ReportBuilder:
                     error_type = line[1]
                     error_code = int(line[2])
                     msg = line[4]
+
+                    if agency not in files_encountered:
+                        files_encountered[agency] = set()
+                    files_encountered[agency].add(filename)
 
                     if agency not in local_files_to_errors:
                         local_files_to_errors[agency] = {}
@@ -261,6 +267,9 @@ class ReportBuilder:
 
                 # Check for errors fixed in the current report.
                 for agency in files_to_errors:
+                    if agency not in files_encountered:
+                        continue
+
                     if agency not in passed_files:
                         passed_files[agency] = set()
                     if agency not in files_to_fixes:
@@ -269,17 +278,23 @@ class ReportBuilder:
                         local_files_to_errors[agency] = {}
 
                     for filename in list(files_to_errors[agency].keys()):
-                        if filename not in local_files_to_errors[agency]:
-                            local_files_to_errors[agency][filename] = set()
-
-                        if filename in passed_files[agency] \
-                           and filename in files_to_errors[agency]:
+                        # Check changes in errors for all files that appeared
+                        # in the current operator report.
+                        if filename in files_encountered[agency]:
+                            if filename not in local_files_to_errors[agency]:
+                                local_files_to_errors[agency][filename] = set()
                             if filename not in files_to_fixes[agency]:
                                 files_to_fixes[agency][filename] = set()
 
-                            files_to_fixes[agency][filename].update(
-                                files_to_errors[agency].pop(filename))
-                            passed_files[agency].remove(filename)
+                            fixed_errors = files_to_errors[agency][filename] \
+                                - local_files_to_errors[agency][filename]
+
+                            for error in fixed_errors:
+                                files_to_fixes[agency][filename].add(error)
+                                files_to_errors[agency][filename].remove(error)
+
+                            if len(files_to_errors[agency][filename]) == 0:
+                                del files_to_errors[agency][filename]
 
                 # Look for new errors from the current report.
                 for agency in local_files_to_errors:
@@ -291,6 +306,15 @@ class ReportBuilder:
                             if filename not in files_to_errors[agency]:
                                 files_to_errors[agency][filename] = set()
                             files_to_errors[agency][filename].add(error)
+
+        for agency in files_to_fixes:
+            if agency in passed_files:
+                passed_files[agency] -= set(files_to_fixes[agency].keys())
+        for agency in files_to_errors:
+            for filename in files_to_errors[agency]:
+                if agency in files_to_fixes \
+                   and filename in files_to_fixes[agency]:
+                    del files_to_fixes[agency][filename]
 
         return passed_files, files_to_fixes, files_to_errors
 
