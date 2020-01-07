@@ -43,13 +43,15 @@
 #
 # =================================================================
 
-import datetime
-import logging
 
 import click
-import csv
-import json
 import codecs
+import csv
+import datetime
+import json
+import logging
+import os
+
 from sqlalchemy import (Boolean, Column, create_engine, Date, DateTime,
                         Float, Enum, ForeignKey, Integer, String, Time,
                         UniqueConstraint, ForeignKeyConstraint)
@@ -661,6 +663,9 @@ class DataRecord(base):
         self.x = ecsv.extcsv['LOCATION']['Longitude']
         self.y = ecsv.extcsv['LOCATION']['Latitude']
         self.z = ecsv.extcsv['LOCATION']['Height']
+
+        self.ingest_filepath = ecsv.source_path
+        self.filename = os.path.basename(ecsv.source_path)
 
         self.generate_ids()
 

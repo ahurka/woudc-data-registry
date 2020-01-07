@@ -55,14 +55,15 @@ from woudc_data_registry import dataset_validators as dv
 from woudc_data_registry.parser import DOMAINS
 
 
-def dummy_extCSV(source):
+def dummy_extCSV(content):
     """
-    Returns a parser.ExtendedCSV instace built from the filepath <source>
+    Returns a parser.ExtendedCSV instace built from the raw string <content>
     with dummy output settings (no logs or reports).
     """
 
+    filepath = '/path/to/nowhere'
     report_ = report.ReportBuilder(None)
-    return parser.ExtendedCSV(source, report_)
+    return parser.ExtendedCSV(filepath, content, report_)
 
 
 def resolve_test_data_path(test_data_file):
@@ -516,7 +517,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/general/20111101.Brewer.MKIII.201.RMDA.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertEqual(ecsv.number_of_observations(), 30)
@@ -525,7 +526,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/umkehr/umkehr2-correct.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertEqual(ecsv.number_of_observations(), 13)
@@ -534,7 +535,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/general/20080101.Kipp_Zonen.UV-S-E-T.000560.PMOD-WRC.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertEqual(ecsv.number_of_observations(), 719)
@@ -545,7 +546,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/general/20040709.ECC.2Z.2ZL1.NOAA-CMDL.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertEqual(ecsv.number_of_observations(), 5295)
@@ -556,7 +557,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/umkehr/umkehr1-duplicated.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertLessEqual(ecsv.number_of_observations(), 14)
@@ -570,7 +571,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/lidar/lidar-correct.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertEqual(ecsv.number_of_observations(), 336)
@@ -579,7 +580,7 @@ class ParserTest(unittest.TestCase):
         contents = util.read_file(resolve_test_data_path(
             'data/spectral/spectral-extra-profile.csv'))
 
-        ecsv = parser.ExtendedCSV(contents)
+        ecsv = dummy_extCSV(contents)
         ecsv.validate_metadata_tables()
 
         self.assertEqual(ecsv.number_of_observations(), 387)
@@ -1558,7 +1559,7 @@ class ReportGenerationTest(unittest.TestCase):
         contents = util.read_file(infile)
 
         reporter = report.ReportBuilder(output_root)
-        ecsv = parser.ExtendedCSV(contents, reporter)
+        ecsv = parser.ExtendedCSV(infile, contents, reporter)
 
         ecsv.validate_metadata_tables()
         ecsv.validate_dataset_tables()
@@ -1597,7 +1598,7 @@ class ReportGenerationTest(unittest.TestCase):
         contents = util.read_file(infile)
 
         reporter = report.ReportBuilder(output_root)
-        ecsv = parser.ExtendedCSV(contents, reporter)
+        ecsv = parser.ExtendedCSV(infile, contents, reporter)
 
         ecsv.validate_metadata_tables()
         ecsv.validate_dataset_tables()
@@ -1627,7 +1628,7 @@ class ReportGenerationTest(unittest.TestCase):
         contents = util.read_file(infile)
 
         reporter = report.ReportBuilder(output_root)
-        ecsv = parser.ExtendedCSV(contents, reporter)
+        ecsv = parser.ExtendedCSV(infile, contents, reporter)
 
         # Some warnings are encountered during parsing.
         ecsv.validate_metadata_tables()
@@ -1682,7 +1683,7 @@ class ReportGenerationTest(unittest.TestCase):
         agency = 'UNKNOWN'
 
         try:
-            ecsv = parser.ExtendedCSV(contents, reporter)
+            ecsv = parser.ExtendedCSV(infile, contents, reporter)
             ecsv.validate_metadata_tables()
             agency = ecsv.extcsv['DATA_GENERATION']['Agency']
 
@@ -1742,11 +1743,10 @@ class ReportGenerationTest(unittest.TestCase):
         reporter = report.ReportBuilder(output_root)
         ecsv = None
 
-        # Agency typically filled in with FTP username for failing files.
-        agency = 'rmda'
+        agency = 'UNKNOWN'
 
         try:
-            ecsv = parser.ExtendedCSV(contents, reporter)
+            ecsv = parser.ExtendedCSV(infile, contents, reporter)
             ecsv.validate_metadata_tables()
             agency = ecsv.extcsv['DATA_GENERATION']['Agency']
 
@@ -1780,7 +1780,7 @@ class ReportGenerationTest(unittest.TestCase):
         agency = 'UNKNOWN'
 
         try:
-            ecsv = parser.ExtendedCSV(contents, reporter)
+            ecsv = parser.ExtendedCSV(infile, contents, reporter)
             raise AssertionError('Parsing of {} did not fail'.format(infile))
         except (parser.MetadataValidationError, parser.NonStandardDataError):
             output_path = os.path.join(output_root, 'run1')
@@ -1824,7 +1824,7 @@ class ReportGenerationTest(unittest.TestCase):
 
             try:
                 contents = util.read_file(fullpath)
-                ecsv = parser.ExtendedCSV(contents, reporter)
+                ecsv = parser.ExtendedCSV(fullpath, contents, reporter)
             except (parser.MetadataValidationError,
                     parser.NonStandardDataError) as err:
                 expected_errors[fullpath] = len(err.errors)
@@ -1901,7 +1901,7 @@ class ReportGenerationTest(unittest.TestCase):
 
             try:
                 contents = util.read_file(fullpath)
-                ecsv = parser.ExtendedCSV(contents, reporter)
+                ecsv = parser.ExtendedCSV(fullpath, contents, reporter)
             except (parser.MetadataValidationError,
                     parser.NonStandardDataError):
                 expected_fails.add(fullpath)
@@ -1974,7 +1974,7 @@ class ReportGenerationTest(unittest.TestCase):
 
                 try:
                     contents = util.read_file(fullpath)
-                    ecsv = parser.ExtendedCSV(contents, reporter)
+                    ecsv = parser.ExtendedCSV(fullpath, contents, reporter)
                 except (parser.MetadataValidationError,
                         parser.NonStandardDataError):
                     if agency not in expected_passes:

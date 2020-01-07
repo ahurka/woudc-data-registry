@@ -125,7 +125,7 @@ class Process(object):
         """
         Process incoming data record.
 
-        :param infile: Path to incoming data file.
+        :param extcsv: ExtendedCSV object containing an incoming data file.
         :param metadata_only: `bool` of whether to only verify common
                               metadata tables.
         :param verify_only: `bool` of whether to verify the file for
@@ -265,6 +265,9 @@ class Process(object):
 
         LOGGER.info('Validating data record')
         data_record = DataRecord(self.extcsv)
+        data_record.url = data_record.get_waf_path(config.WDR_WAF_BASEURL)
+        self.process_end = datetime.utcnow()
+
         data_record_ok = self.check_data_record(data_record)
 
         if not data_record_ok:

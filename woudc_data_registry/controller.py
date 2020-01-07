@@ -119,7 +119,7 @@ def orchestrate(source, working_dir, run_number=0,
                 contents = read_file(file_to_process)
 
                 LOGGER.info('Parsing data record')
-                extcsv = ExtendedCSV(contents, report)
+                extcsv = ExtendedCSV(file_to_process, contents, report)
 
                 LOGGER.info('Validating Extended CSV')
                 extcsv.validate_metadata_tables()
@@ -139,11 +139,6 @@ def orchestrate(source, working_dir, run_number=0,
                     report.record_failing_file(file_to_process, contributor,
                                                extcsv=extcsv)
                 else:
-                    data_record.ingest_filepath = file_to_process
-                    data_record.filename = os.path.basename(file_to_process)
-                    data_record.url = \
-                        data_record.get_waf_path(config.WDR_WAF_BASEURL)
-
                     if verify_only:
                         click.echo('Verified but not ingested')
                     else:
