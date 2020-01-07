@@ -91,8 +91,9 @@ def clear_sandbox():
     sandbox = resolve_test_data_path('data/reports/sandbox')
 
     for filename in os.listdir(sandbox):
-        fullpath = os.path.join(sandbox, filename)
-        os.remove(fullpath)
+        if not filename.startswith('.'):
+            fullpath = os.path.join(sandbox, filename)
+            os.remove(fullpath)
 
 
 def clear_email_outputs():
@@ -105,7 +106,8 @@ def clear_email_outputs():
 
     for dirpath, dirnames, filenames in os.walk(root):
         for filename in filenames:
-            if not filename.startswith('operator-report'):
+            if not filename.startswith('operator-report') \
+               and not filename.startswith('.'):
                 fullpath = os.path.join(dirpath, filename)
                 os.remove(fullpath)
 
