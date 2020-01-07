@@ -102,12 +102,11 @@ def clear_email_outputs():
     in the email report testing directory.
     """
 
-    root = resolve_test_data_path('data/reports/dummy_runs')
+    root = resolve_test_data_path('data/reports')
 
     for dirpath, dirnames, filenames in os.walk(root):
         for filename in filenames:
-            if not filename.startswith('operator-report') \
-               and not filename.startswith('.'):
+            if filename.startswith('failed-files'):
                 fullpath = os.path.join(dirpath, filename)
                 os.remove(fullpath)
 
@@ -1485,7 +1484,7 @@ class ReportGenerationTest(unittest.TestCase):
         """Test automatic run number determination from the file system"""
 
         # Test that an empty working directory results in run number 1.
-        root = resolve_test_data_path('data/reports/run_numbers/no_reports')
+        root = resolve_test_data_path('data/reports/no_reports')
         reporter = report.ReportBuilder(root)
 
         operator_report_path = reporter.operator_report_filepath()
@@ -1493,7 +1492,7 @@ class ReportGenerationTest(unittest.TestCase):
         self.assertIn('run1.csv', operator_report_path)
 
         # Test that run number is adjusted when one previous run has happened.
-        root = resolve_test_data_path('data/reports/run_numbers/one_report')
+        root = resolve_test_data_path('data/reports/one_report')
         reporter = report.ReportBuilder(root)
 
         operator_report_path = reporter.operator_report_filepath()
@@ -1501,7 +1500,7 @@ class ReportGenerationTest(unittest.TestCase):
         self.assertIn('run2.csv', operator_report_path)
 
         # Test that run number is adjusted when multiple runs have happened.
-        root = resolve_test_data_path('data/reports/run_numbers/six_reports')
+        root = resolve_test_data_path('data/reports/six_reports')
         reporter = report.ReportBuilder(root)
 
         operator_report_path = reporter.operator_report_filepath()
@@ -1509,7 +1508,7 @@ class ReportGenerationTest(unittest.TestCase):
         self.assertIn('run7.csv', operator_report_path)
 
         # Test that run number is correct when past runs start from above 1.
-        root = resolve_test_data_path('data/reports/run_numbers/jump_reports')
+        root = resolve_test_data_path('data/reports/jump_reports')
         reporter = report.ReportBuilder(root)
 
         operator_report_path = reporter.operator_report_filepath()
@@ -1805,7 +1804,7 @@ class ReportGenerationTest(unittest.TestCase):
         """
 
         output_root = resolve_test_data_path('data/reports/sandbox')
-        infile_root = resolve_test_data_path('data/reports/pass_and_fail')
+        infile_root = resolve_test_data_path('data/general/run_pass_and_fail')
 
         reporter = report.ReportBuilder(output_root)
 
@@ -1889,7 +1888,7 @@ class ReportGenerationTest(unittest.TestCase):
         """
 
         output_root = resolve_test_data_path('data/reports/sandbox')
-        infile_root = resolve_test_data_path('data/reports/pass_and_fail')
+        infile_root = resolve_test_data_path('data/general/run_pass_and_fail')
 
         reporter = report.ReportBuilder(output_root)
         agency = 'MSC'
@@ -1953,7 +1952,8 @@ class ReportGenerationTest(unittest.TestCase):
         """Test that files in the run report are grouped by agency"""
 
         output_root = resolve_test_data_path('data/reports/sandbox')
-        infile_root = resolve_test_data_path('data/reports/agencies')
+        infile_root = resolve_test_data_path(
+            'data/general/run_multiple_agencies')
 
         reporter = report.ReportBuilder(output_root)
 
@@ -2047,8 +2047,7 @@ class ReportGenerationTest(unittest.TestCase):
     def test_email_report_single_pass(self):
         """Test email report generation with a single passing file"""
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/one_pass')
+        output_root = resolve_test_data_path('data/reports/one_pass')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@site.com'}
@@ -2075,8 +2074,7 @@ class ReportGenerationTest(unittest.TestCase):
     def test_email_report_single_fail(self):
         """Test email report generation with a single failing file"""
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/one_fail')
+        output_root = resolve_test_data_path('data/reports/one_fail')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@site.com'}
@@ -2107,8 +2105,7 @@ class ReportGenerationTest(unittest.TestCase):
     def test_email_report_mixed(self):
         """Test email report generation with passing and failing files"""
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/pass_and_fail')
+        output_root = resolve_test_data_path('data/reports/pass_and_fail')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@site.com'}
@@ -2145,7 +2142,7 @@ class ReportGenerationTest(unittest.TestCase):
         """
 
         output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/multiple_causes_one_run')
+            'data/reports/multiple_causes_one_run')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@site.com'}
@@ -2180,8 +2177,7 @@ class ReportGenerationTest(unittest.TestCase):
     def test_email_report_multiple_agencies(self):
         """Test email report generation where input has multiple agencies"""
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/agencies')
+        output_root = resolve_test_data_path('data/reports/agencies')
         reporter = report.ReportBuilder(output_root)
 
         emails = {
@@ -2244,8 +2240,7 @@ class ReportGenerationTest(unittest.TestCase):
     def test_email_report_multiple_runs(self):
         """Test email report generation across multiple processing calls"""
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/multiple_runs')
+        output_root = resolve_test_data_path('data/reports/multiple_runs')
         reporter = report.ReportBuilder(output_root)
 
         emails = {
@@ -2308,7 +2303,7 @@ class ReportGenerationTest(unittest.TestCase):
     def test_email_report_fix(self):
         """Test email report generation when files are fixed between runs"""
 
-        output_root = resolve_test_data_path('data/reports/dummy_runs/one_fix')
+        output_root = resolve_test_data_path('data/reports/one_fix')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@mail.com'}
@@ -2342,8 +2337,7 @@ class ReportGenerationTest(unittest.TestCase):
         and others are fixed between runs.
         """
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/pass_and_fix')
+        output_root = resolve_test_data_path('data/reports/pass_and_fix')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@mail.com'}
@@ -2380,8 +2374,7 @@ class ReportGenerationTest(unittest.TestCase):
         and others are fixed between runs
         """
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/fix_and_fail')
+        output_root = resolve_test_data_path('data/reports/fix_and_fail')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@mail.com'}
@@ -2425,8 +2418,7 @@ class ReportGenerationTest(unittest.TestCase):
         only to have an irrecoverable error show up.
         """
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/fix_still_fail')
+        output_root = resolve_test_data_path('data/reports/fix_still_fail')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@mail.com'}
@@ -2460,8 +2452,7 @@ class ReportGenerationTest(unittest.TestCase):
         some fail irrecoverably, and others are fixed between runs.
         """
 
-        output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/pass_fix_fail')
+        output_root = resolve_test_data_path('data/reports/pass_fix_fail')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@mail.com'}
@@ -2511,7 +2502,7 @@ class ReportGenerationTest(unittest.TestCase):
         """
 
         output_root = resolve_test_data_path(
-            'data/reports/dummy_runs/multiple_causes_two_runs')
+            'data/reports/multiple_causes_two_runs')
         reporter = report.ReportBuilder(output_root)
 
         emails = {'MSC': 'placeholder@mail.com'}
